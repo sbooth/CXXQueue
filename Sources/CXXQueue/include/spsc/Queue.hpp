@@ -12,6 +12,7 @@
 #include <atomic>
 #include <bit>
 #include <concepts>
+#include <new>
 #include <numeric>
 #include <span>
 #include <type_traits>
@@ -158,9 +159,9 @@ class Queue final {
     static constexpr auto capacityMask_ = N - 1;
 
     /// The free-running write location.
-    AtomicSizeType writePosition_{0};
+    alignas(std::hardware_destructive_interference_size) AtomicSizeType writePosition_{0};
     /// The free-running read location.
-    AtomicSizeType readPosition_{0};
+    alignas(std::hardware_destructive_interference_size) AtomicSizeType readPosition_{0};
 
     static_assert(AtomicSizeType::is_always_lock_free, "Lock-free AtomicSizeType required");
 };
