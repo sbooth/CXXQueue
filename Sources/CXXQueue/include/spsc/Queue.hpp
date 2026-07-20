@@ -124,7 +124,7 @@ class Queue final {
     /// Discards all values and advances the read position.
     /// @note This method is only safe to call from the consumer.
     /// @return The number of values discarded.
-    [[nodiscard]] SizeType drain() noexcept [[clang::nonblocking]];
+    SizeType drain() noexcept [[clang::nonblocking]];
 
     // MARK: Advanced Writing and Reading
 
