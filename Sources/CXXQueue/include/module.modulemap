@@ -1,0 +1,12 @@
+//
+// SPDX-FileCopyrightText: 2026 Stephen F. Booth <contact@sbooth.dev>
+// SPDX-License-Identifier: MIT
+//
+// Part of https://github.com/sbooth/CXXQueue
+//
+
+module CXXQueue {
+    requires cplusplus20
+    header "spsc/Queue.hpp"
+    export *
+}
