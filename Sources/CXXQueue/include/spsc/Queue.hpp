@@ -230,7 +230,7 @@ inline bool Queue<T, N>::push(const T &value) noexcept {
     }
 
     buffer_[writePos & capacityMask_] = value;
-    writePosition_.fetch_add(1, std::memory_order_release);
+    writePosition_.store(writePos + 1, std::memory_order_release);
     return true;
 }
 
@@ -246,7 +246,7 @@ inline bool Queue<T, N>::pop(T &value) noexcept {
     }
 
     value = buffer_[readPos & capacityMask_];
-    readPosition_.fetch_add(1, std::memory_order_release);
+    readPosition_.store(readPos + 1, std::memory_order_release);
     return true;
 }
 
@@ -283,7 +283,7 @@ inline auto Queue<T, N>::discard(SizeType count) noexcept -> SizeType {
     }
 
     const auto n = std::min(used, count);
-    readPosition_.fetch_add(n, std::memory_order_release);
+    readPosition_.store(readPos + n, std::memory_order_release);
     return n;
 }
 
@@ -328,7 +328,8 @@ inline auto Queue<T, N>::writeVector() noexcept -> WriteVector {
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline void Queue<T, N>::commitWrite(SizeType count) noexcept {
-    writePosition_.fetch_add(count, std::memory_order_release);
+    const auto writePos = writePosition_.load(std::memory_order_relaxed);
+    writePosition_.store(writePos + count, std::memory_order_release);
 }
 
 template <ValueLike T, std::size_t N>
@@ -354,7 +355,8 @@ inline auto Queue<T, N>::readVector() const noexcept -> ReadVector {
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline void Queue<T, N>::commitRead(SizeType count) noexcept {
-    readPosition_.fetch_add(count, std::memory_order_release);
+    const auto readPos = readPosition_.load(std::memory_order_relaxed);
+    readPosition_.store(readPos + count, std::memory_order_release);
 }
 
 } /* namespace spsc */
