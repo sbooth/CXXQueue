@@ -12,7 +12,6 @@
 #include <atomic>
 #include <bit>
 #include <concepts>
-#include <numeric>
 #include <span>
 #include <type_traits>
 
