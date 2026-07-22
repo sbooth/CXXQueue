@@ -89,12 +89,12 @@ class Queue final {
     /// Returns the number of vacant slots in the queue.
     /// @note The result of this method is only accurate when called from the producer.
     /// @return The number of unoccupied slots available for writing.
-    [[nodiscard]] SizeType free() const noexcept [[clang::nonblocking]];
+    [[nodiscard]] SizeType availableToWrite() const noexcept [[clang::nonblocking]];
 
     /// Returns the number of occupied slots in the queue.
     /// @note The result of this method is only accurate when called from the consumer.
     /// @return The number of occupied slots available for reading.
-    [[nodiscard]] SizeType size() const noexcept [[clang::nonblocking]];
+    [[nodiscard]] SizeType availableToRead() const noexcept [[clang::nonblocking]];
 
     // MARK: Queue Operations
 
@@ -204,7 +204,7 @@ inline bool Queue<T, N>::isEmpty() const noexcept {
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline auto Queue<T, N>::free() const noexcept -> SizeType {
+inline auto Queue<T, N>::availableToWrite() const noexcept -> SizeType {
     const auto writePos = writePosition_.load(std::memory_order_relaxed);
     const auto readPos = readPosition_.load(std::memory_order_acquire);
     return N - (writePos - readPos);
@@ -212,7 +212,7 @@ inline auto Queue<T, N>::free() const noexcept -> SizeType {
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline auto Queue<T, N>::size() const noexcept -> SizeType {
+inline auto Queue<T, N>::availableToRead() const noexcept -> SizeType {
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
     return writePos - readPos;
