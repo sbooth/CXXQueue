@@ -111,25 +111,63 @@ TEST_F(QueueTest, WrapAroundBehavior) {
 
 // MARK: - Advanced Transactional APIs
 
+TEST_F(QueueTest, WriteAndReadTransaction) {
+    // Nothing to read when empty
+    auto readTrans = queue_.beginRead();
+    EXPECT_EQ(readTrans.availableToRead(), 0);
+    ASSERT_FALSE(readTrans.commit(0));
+
+    EXPECT_TRUE(queue_.isEmpty());
+
+    // Fill
+    auto writeTrans = queue_.beginWrite();
+    EXPECT_EQ(writeTrans.availableToWrite(), 4);
+    writeTrans.first[0] = 100;
+    writeTrans.first[1] = 101;
+    writeTrans.first[2] = 102;
+    writeTrans.first[3] = 103;
+
+    // Ensure erroneous and double commits fail
+    EXPECT_FALSE(writeTrans.commit(5));
+    EXPECT_EQ(writeTrans.availableToWrite(), 4);
+    EXPECT_TRUE(writeTrans.commit(4));
+    EXPECT_EQ(writeTrans.availableToWrite(), 0);
+    EXPECT_FALSE(writeTrans.commit(4));
+
+    EXPECT_TRUE(queue_.isFull());
+
+    writeTrans = queue_.beginWrite();
+    EXPECT_EQ(writeTrans.availableToWrite(), 0);
+    ASSERT_FALSE(writeTrans.commit(0));
+
+    readTrans = queue_.beginRead();
+    EXPECT_EQ(readTrans.availableToRead(), 4);
+    ASSERT_FALSE(readTrans.commit(5));
+    ASSERT_TRUE(readTrans.commit(2));
+    ASSERT_FALSE(readTrans.commit(1));
+
+    EXPECT_EQ(queue_.availableToRead(), 2);
+}
+
 TEST_F(QueueTest, WriteAndReadTransactionContiguous) {
-    // When empty, beginWriteTransaction should return a contiguous span to the end of the buffer
-    auto writeTrans = queue_.beginWriteTransaction();
-    ASSERT_EQ(writeTrans.first_.size(), kCapacity);
-    ASSERT_EQ(writeTrans.second_.size(), 0);
+    // When empty, beginWrite should return a contiguous span to the end of the buffer
+    auto writeTrans = queue_.beginWrite();
+    ASSERT_EQ(writeTrans.first.size(), kCapacity);
+    ASSERT_EQ(writeTrans.second.size(), 0);
 
     // Stage writing 2 elements manually
-    writeTrans.first_[0] = 100;
-    writeTrans.first_[1] = 201;
+    writeTrans.first[0] = 100;
+    writeTrans.first[1] = 201;
     EXPECT_TRUE(writeTrans.commit(2));
 
     EXPECT_EQ(queue_.availableToRead(), 2);
 
     // Read transaction should expose these 2 contiguous elements
-    auto readTrans = queue_.beginReadTransaction();
-    ASSERT_EQ(readTrans.first_.size(), 2);
-    ASSERT_EQ(readTrans.second_.size(), 0);
-    EXPECT_EQ(readTrans.first_[0], 100);
-    EXPECT_EQ(readTrans.first_[1], 201);
+    auto readTrans = queue_.beginRead();
+    ASSERT_EQ(readTrans.first.size(), 2);
+    ASSERT_EQ(readTrans.second.size(), 0);
+    EXPECT_EQ(readTrans.first[0], 100);
+    EXPECT_EQ(readTrans.first[1], 201);
 
     EXPECT_TRUE(readTrans.commit(2));
     EXPECT_TRUE(queue_.isEmpty());
@@ -156,14 +194,14 @@ TEST_F(QueueTest, TransactionWrapAroundSplitting) {
     // There are 3 free slots (Index 3, Index 0, Index 1).
     // writeIndex is 3. toEnd is 4 - 3 = 1.
     // Because free (3) > toEnd (1), it must split!
-    auto writeTrans = queue_.beginWriteTransaction();
-    ASSERT_EQ(writeTrans.first_.size(), 1);  // Index 3
-    ASSERT_EQ(writeTrans.second_.size(), 2); // Indices 0 and 1
+    auto writeTrans = queue_.beginWrite();
+    ASSERT_EQ(writeTrans.first.size(), 1);  // Index 3
+    ASSERT_EQ(writeTrans.second.size(), 2); // Indices 0 and 1
 
     // Stage data into the write spans
-    writeTrans.first_[0] = 30;         // Goes into index 3
-    writeTrans.second_[0] = 40;        // Goes into index 0
-    writeTrans.second_[1] = 50;        // Goes into index 1
+    writeTrans.first[0] = 30;         // Goes into index 3
+    writeTrans.second[0] = 40;        // Goes into index 0
+    writeTrans.second[1] = 50;        // Goes into index 1
     EXPECT_TRUE(writeTrans.commit(3)); // Write position is now 6 (6 & 3 = 2)
 
     // 3. Test READ transaction splitting.
@@ -174,14 +212,14 @@ TEST_F(QueueTest, TransactionWrapAroundSplitting) {
     // Index 3: 30
     // Total used slots = 4 (Full queue). Read position is 2. toEnd is 4 - 2 = 2.
     // Because used (4) > toEnd (2), it must split!
-    auto readTrans = queue_.beginReadTransaction();
-    ASSERT_EQ(readTrans.first_.size(), 2);  // Indices 2 and 3
-    ASSERT_EQ(readTrans.second_.size(), 2); // Indices 0 and 1
+    auto readTrans = queue_.beginRead();
+    ASSERT_EQ(readTrans.first.size(), 2);  // Indices 2 and 3
+    ASSERT_EQ(readTrans.second.size(), 2); // Indices 0 and 1
 
-    EXPECT_EQ(readTrans.first_[0], 20);
-    EXPECT_EQ(readTrans.first_[1], 30);
-    EXPECT_EQ(readTrans.second_[0], 40);
-    EXPECT_EQ(readTrans.second_[1], 50);
+    EXPECT_EQ(readTrans.first[0], 20);
+    EXPECT_EQ(readTrans.first[1], 30);
+    EXPECT_EQ(readTrans.second[0], 40);
+    EXPECT_EQ(readTrans.second[1], 50);
 
     EXPECT_TRUE(readTrans.commit(4));
     EXPECT_TRUE(queue_.isEmpty());

@@ -82,14 +82,14 @@ class Queue final {
     /// @return true if the queue contains no values.
     [[nodiscard]] bool isEmpty() const noexcept [[clang::nonblocking]];
 
-    /// Returns the number of vacant slots in the queue.
+    /// Returns the number of unoccupied positions in the queue.
     /// @note The result of this method is only accurate when called from the producer.
-    /// @return The number of unoccupied slots available for writing.
+    /// @return The number of unoccupied positions available for writing.
     [[nodiscard]] SizeType availableToWrite() const noexcept [[clang::nonblocking]];
 
-    /// Returns the number of occupied slots in the queue.
+    /// Returns the number of occupied positions in the queue.
     /// @note The result of this method is only accurate when called from the consumer.
-    /// @return The number of occupied slots available for reading.
+    /// @return The number of occupied positions available for reading.
     [[nodiscard]] SizeType availableToRead() const noexcept [[clang::nonblocking]];
 
     // MARK: Queue Operations
@@ -133,9 +133,13 @@ class Queue final {
     class WriteTransaction final {
       public:
         /// The first writable span.
-        std::span<T> first_;
+        std::span<T> first;
         /// The second writable span.
-        std::span<T> second_;
+        std::span<T> second;
+
+        /// Returns the number of positions available to write.
+        /// @return The number of positions available for writing.
+        [[nodiscard]] SizeType availableToWrite() const noexcept;
 
         /// Finalizes the write transaction by committing staged data to the back of the queue.
         /// @param count The number of values that were written.
@@ -145,37 +149,47 @@ class Queue final {
         WriteTransaction(const WriteTransaction &) = delete;
         WriteTransaction &operator=(const WriteTransaction &) = delete;
 
+        WriteTransaction(WriteTransaction &&) noexcept = default;
+        WriteTransaction &operator=(WriteTransaction &&) noexcept = default;
+
         /// Destroys the write transaction without committing.
         ~WriteTransaction() noexcept = default;
 
       private:
+        /// Creates an empty write transaction.
+        WriteTransaction() noexcept = default;
+
         /// Creates a write transaction.
         /// @param first The first writable span.
         /// @param second The second writable span.
         /// @param queue The owning queue.
-        WriteTransaction(std::span<T> first, std::span<T> second, Queue *queue) noexcept;
-
-        WriteTransaction(WriteTransaction &&) noexcept = default;
-        WriteTransaction &operator=(WriteTransaction &&) noexcept = default;
+        /// @param position The base write position.
+        WriteTransaction(std::span<T> first, std::span<T> second, Queue *queue, SizeType position) noexcept;
 
         friend class Queue;
         /// The owning instance.
         Queue *queue_{nullptr};
+        /// The write position at the time the transaction was created.
+        SizeType position_{0};
     };
 
     /// Opens and returns a write transaction containing the current writable space.
     /// @note This method is only safe to call from the producer.
     /// @warning Committing a write transaction invalidates all other open write transactions.
     /// @return A write transaction containing the current writable space.
-    [[nodiscard]] WriteTransaction beginWriteTransaction() noexcept [[clang::nonblocking]];
+    [[nodiscard]] WriteTransaction beginWrite() noexcept [[clang::nonblocking]];
 
     /// A read transaction.
     class ReadTransaction final {
       public:
         /// The first readable span.
-        std::span<const T> first_;
+        std::span<const T> first;
         /// The second readable span.
-        std::span<const T> second_;
+        std::span<const T> second;
+
+        /// Returns the number of elements available to read.
+        /// @return The number of elements available for reading.
+        [[nodiscard]] SizeType availableToRead() const noexcept;
 
         /// Finalizes the read transaction by removing data from the front of the queue.
         /// @param count The number of values that were read.
@@ -185,29 +199,35 @@ class Queue final {
         ReadTransaction(const ReadTransaction &) = delete;
         ReadTransaction &operator=(const ReadTransaction &) = delete;
 
+        ReadTransaction(ReadTransaction &&) noexcept = default;
+        ReadTransaction &operator=(ReadTransaction &&) noexcept = default;
+
         /// Destroys the read transaction without committing.
         ~ReadTransaction() noexcept = default;
 
       private:
+        /// Creates an empty read transaction.
+        ReadTransaction() noexcept = default;
+
         /// Creates a read transaction.
         /// @param first The first readable span.
         /// @param second The second readable span.
         /// @param queue The owning queue.
-        ReadTransaction(std::span<const T> first, std::span<const T> second, Queue *queue) noexcept;
-
-        ReadTransaction(ReadTransaction &&) noexcept = default;
-        ReadTransaction &operator=(ReadTransaction &&) noexcept = default;
+        /// @param position The base read position.
+        ReadTransaction(std::span<const T> first, std::span<const T> second, Queue *queue, SizeType position) noexcept;
 
         friend class Queue;
         /// The owning instance.
         Queue *queue_{nullptr};
+        /// The read position at the time the transaction was created.
+        SizeType position_{0};
     };
 
     /// Opens and returns a read transaction containing the current readable space.
     /// @note This method is only safe to call from the consumer.
     /// @warning Committing a read transaction invalidates all other open read transactions.
     /// @return A read transaction containing the current readable space.
-    [[nodiscard]] ReadTransaction beginReadTransaction() noexcept [[clang::nonblocking]];
+    [[nodiscard]] ReadTransaction beginRead() noexcept [[clang::nonblocking]];
 
   private:
     /// The buffer containing the values.
@@ -362,56 +382,70 @@ inline auto Queue<T, N>::discardAll() noexcept -> SizeType {
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
+inline auto Queue<T, N>::WriteTransaction::availableToWrite() const noexcept -> SizeType {
+    return first.size() + second.size();
+}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
 inline bool Queue<T, N>::WriteTransaction::commit(SizeType count) noexcept {
-    if (queue_ == nullptr || count > (first_.size() + second_.size())) [[unlikely]] {
+    if (queue_ == nullptr || count > availableToWrite()) [[unlikely]] {
         return false;
     }
 
-    const auto writePos = queue_->writePosition_.load(std::memory_order_relaxed);
-    queue_->writePosition_.store(writePos + count, std::memory_order_release);
+    queue_->writePosition_.store(position_ + count, std::memory_order_release);
 
     queue_ = nullptr;
+    first = {};
+    second = {};
 
     return true;
 }
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline Queue<T, N>::WriteTransaction::WriteTransaction(std::span<T> first, std::span<T> second, Queue *queue) noexcept
-    : first_(first), second_(second), queue_(queue) {}
+inline Queue<T, N>::WriteTransaction::WriteTransaction(std::span<T> first, std::span<T> second, Queue *queue, SizeType position) noexcept
+    : first(first), second(second), queue_(queue), position_(position) {}
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline auto Queue<T, N>::beginWriteTransaction() noexcept -> WriteTransaction {
+inline auto Queue<T, N>::beginWrite() noexcept -> WriteTransaction {
     const auto writePos = writePosition_.load(std::memory_order_relaxed);
     const auto readPos = readPosition_.load(std::memory_order_acquire);
     const auto used = writePos - readPos;
     const auto free = N - used;
 
     if (free == 0) [[unlikely]] {
-        return WriteTransaction({}, {}, this);
+        return {};
     }
 
     const auto writeIndex = writePos & capacityMask_;
     const auto toEnd = N - writeIndex;
 
     if (free > toEnd) [[unlikely]] {
-        return WriteTransaction({buffer_ + writeIndex, toEnd}, {buffer_, free - toEnd}, this);
+        return WriteTransaction({buffer_ + writeIndex, toEnd}, {buffer_, free - toEnd}, this, writePos);
     }
-    return WriteTransaction({buffer_ + writeIndex, free}, {}, this);
+    return WriteTransaction({buffer_ + writeIndex, free}, {}, this, writePos);
+}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline auto Queue<T, N>::ReadTransaction::availableToRead() const noexcept -> SizeType {
+    return first.size() + second.size();
 }
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline bool Queue<T, N>::ReadTransaction::commit(SizeType count) noexcept {
-    if (queue_ == nullptr || count > (first_.size() + second_.size())) [[unlikely]] {
+    if (queue_ == nullptr || count > availableToRead()) [[unlikely]] {
         return false;
     }
 
-    const auto readPos = queue_->readPosition_.load(std::memory_order_relaxed);
-    queue_->readPosition_.store(readPos + count, std::memory_order_release);
+    queue_->readPosition_.store(position_ + count, std::memory_order_release);
 
     queue_ = nullptr;
+    first = {};
+    second = {};
 
     return true;
 }
@@ -419,27 +453,27 @@ inline bool Queue<T, N>::ReadTransaction::commit(SizeType count) noexcept {
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline Queue<T, N>::ReadTransaction::ReadTransaction(std::span<const T> first, std::span<const T> second,
-                                                     Queue *queue) noexcept
-    : first_(first), second_(second), queue_(queue) {}
+                                                     Queue *queue, SizeType position) noexcept
+    : first(first), second(second), queue_(queue), position_(position) {}
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline auto Queue<T, N>::beginReadTransaction() noexcept -> ReadTransaction {
+inline auto Queue<T, N>::beginRead() noexcept -> ReadTransaction {
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
     const auto used = writePos - readPos;
 
     if (used == 0) [[unlikely]] {
-        return ReadTransaction({}, {}, this);
+        return {};
     }
 
     const auto readIndex = readPos & capacityMask_;
     const auto toEnd = N - readIndex;
 
     if (used > toEnd) [[unlikely]] {
-        return ReadTransaction({buffer_ + readIndex, toEnd}, {buffer_, used - toEnd}, this);
+        return ReadTransaction({buffer_ + readIndex, toEnd}, {buffer_, used - toEnd}, this, readPos);
     }
-    return ReadTransaction({buffer_ + readIndex, used}, {}, this);
+    return ReadTransaction({buffer_ + readIndex, used}, {}, this, readPos);
 }
 
 } /* namespace spsc */
