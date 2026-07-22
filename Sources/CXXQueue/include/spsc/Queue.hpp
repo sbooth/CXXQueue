@@ -138,7 +138,7 @@ class Queue final {
         /// The second writable span.
         std::span<T> second;
 
-        /// Returns the number of positions available to write.
+        /// Returns the number of positions available to write in this transaction.
         /// @return The number of positions available for writing.
         [[nodiscard]] SizeType availableToWrite() const noexcept [[clang::nonblocking]];
 
@@ -183,7 +183,7 @@ class Queue final {
     /// committed.
     /// @note This method is only safe to call from the producer.
     /// @warning After any operation that advances the write position all previously opened write transactions become
-    /// invalid.
+    /// invalid. Using an invalid transaction results in undefined behavior.
     /// @return A write transaction containing the current writable space.
     [[nodiscard]] WriteTransaction beginWrite() noexcept [[clang::nonblocking]];
 
@@ -195,7 +195,7 @@ class Queue final {
         /// The second readable span.
         std::span<const T> second;
 
-        /// Returns the number of elements available to read.
+        /// Returns the number of elements available to read in this transaction.
         /// @return The number of elements available for reading.
         [[nodiscard]] SizeType availableToRead() const noexcept [[clang::nonblocking]];
 
@@ -240,7 +240,7 @@ class Queue final {
     /// committed.
     /// @note This method is only safe to call from the consumer.
     /// @warning After any operation that advances the read position all previously opened read transactions become
-    /// invalid.
+    /// invalid. Using an invalid transaction results in undefined behavior.
     /// @return A read transaction containing the current readable space.
     [[nodiscard]] ReadTransaction beginRead() noexcept [[clang::nonblocking]];
 
