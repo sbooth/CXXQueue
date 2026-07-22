@@ -161,10 +161,10 @@ TEST_F(QueueTest, TransactionWrapAroundSplitting) {
     ASSERT_EQ(writeTrans.second_.size(), 2); // Indices 0 and 1
 
     // Stage data into the write spans
-    writeTrans.first_[0] = 30;  // Goes into index 3
-    writeTrans.second_[0] = 40; // Goes into index 0
-    writeTrans.second_[1] = 50; // Goes into index 1
-    writeTrans.commit(3);   // Write position is now 6 (6 & 3 = 2)
+    writeTrans.first_[0] = 30;         // Goes into index 3
+    writeTrans.second_[0] = 40;        // Goes into index 0
+    writeTrans.second_[1] = 50;        // Goes into index 1
+    EXPECT_TRUE(writeTrans.commit(3)); // Write position is now 6 (6 & 3 = 2)
 
     // 3. Test READ transaction splitting.
     // Current layout:
