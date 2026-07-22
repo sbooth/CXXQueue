@@ -401,13 +401,8 @@ inline bool Queue<T, N>::WriteTransaction::commit(SizeType count) noexcept {
     if (queue_ == nullptr || count > availableToWrite()) [[unlikely]] {
         return false;
     }
-
     queue_->writePosition_.store(position_ + count, std::memory_order_release);
-
-    queue_ = nullptr;
-    first = {};
-    second = {};
-
+    *this = {};
     return true;
 }
 
@@ -468,13 +463,8 @@ inline bool Queue<T, N>::ReadTransaction::commit(SizeType count) noexcept {
     if (queue_ == nullptr || count > availableToRead()) [[unlikely]] {
         return false;
     }
-
     queue_->readPosition_.store(position_ + count, std::memory_order_release);
-
-    queue_ = nullptr;
-    first = {};
-    second = {};
-
+    *this = {};
     return true;
 }
 
