@@ -157,9 +157,9 @@ class Queue final {
     /// The size of buffer_  minus one.
     static constexpr auto capacityMask_ = N - 1;
 
-    /// An aligned atomic unsigned integer type
+    /// An aligned atomic unsigned integer type.
     struct alignas(std::hardware_destructive_interference_size) AtomicPosition final {
-        /// The value
+        /// The value.
         AtomicSizeType value_;
         static_assert(AtomicSizeType::is_always_lock_free, "Lock-free AtomicSizeType required");
     };
