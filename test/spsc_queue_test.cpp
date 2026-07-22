@@ -113,38 +113,38 @@ TEST_F(QueueTest, WrapAroundBehavior) {
 
 TEST_F(QueueTest, WriteAndReadTransaction) {
     // Nothing to read when empty
-    auto readTrans = queue_.beginRead();
-    EXPECT_EQ(readTrans.availableToRead(), 0);
-    ASSERT_FALSE(readTrans.commit(0));
+    auto readTrans1 = queue_.beginRead();
+    EXPECT_EQ(readTrans1.availableToRead(), 0);
+    ASSERT_FALSE(readTrans1.commit(0));
 
     EXPECT_TRUE(queue_.isEmpty());
 
     // Fill
-    auto writeTrans = queue_.beginWrite();
-    EXPECT_EQ(writeTrans.availableToWrite(), 4);
-    writeTrans.first[0] = 100;
-    writeTrans.first[1] = 101;
-    writeTrans.first[2] = 102;
-    writeTrans.first[3] = 103;
+    auto writeTrans1 = queue_.beginWrite();
+    EXPECT_EQ(writeTrans1.availableToWrite(), 4);
+    writeTrans1.first[0] = 100;
+    writeTrans1.first[1] = 101;
+    writeTrans1.first[2] = 102;
+    writeTrans1.first[3] = 103;
 
     // Ensure erroneous and double commits fail
-    EXPECT_FALSE(writeTrans.commit(5));
-    EXPECT_EQ(writeTrans.availableToWrite(), 4);
-    EXPECT_TRUE(writeTrans.commit(4));
-    EXPECT_EQ(writeTrans.availableToWrite(), 0);
-    EXPECT_FALSE(writeTrans.commit(4));
+    EXPECT_FALSE(writeTrans1.commit(5));
+    EXPECT_EQ(writeTrans1.availableToWrite(), 4);
+    EXPECT_TRUE(writeTrans1.commit(4));
+    EXPECT_EQ(writeTrans1.availableToWrite(), 0);
+    EXPECT_FALSE(writeTrans1.commit(4));
 
     EXPECT_TRUE(queue_.isFull());
 
-    writeTrans = queue_.beginWrite();
-    EXPECT_EQ(writeTrans.availableToWrite(), 0);
-    ASSERT_FALSE(writeTrans.commit(0));
+    auto writeTrans2 = queue_.beginWrite();
+    EXPECT_EQ(writeTrans2.availableToWrite(), 0);
+    ASSERT_FALSE(writeTrans2.commit(0));
 
-    readTrans = queue_.beginRead();
-    EXPECT_EQ(readTrans.availableToRead(), 4);
-    ASSERT_FALSE(readTrans.commit(5));
-    ASSERT_TRUE(readTrans.commit(2));
-    ASSERT_FALSE(readTrans.commit(1));
+    auto readTrans2 = queue_.beginRead();
+    EXPECT_EQ(readTrans2.availableToRead(), 4);
+    ASSERT_FALSE(readTrans2.commit(5));
+    ASSERT_TRUE(readTrans2.commit(2));
+    ASSERT_FALSE(readTrans2.commit(1));
 
     EXPECT_EQ(queue_.availableToRead(), 2);
 }
