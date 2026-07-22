@@ -96,12 +96,14 @@ class Queue final {
 
     /// Copies a value to the back of the queue and advances the write position.
     /// @note This method is only safe to call from the producer.
+    /// @warning This method invalidates all open write transactions.
     /// @param value The value to copy.
     /// @return false if the queue is full.
     [[nodiscard]] bool push(const T &value) noexcept [[clang::nonblocking]];
 
     /// Copies a value from the front of the queue and advances the read position.
     /// @note This method is only safe to call from the consumer.
+    /// @warning This method invalidates all open read transactions.
     /// @param value A reference to receive the value.
     /// @return false if the queue is empty.
     [[nodiscard]] bool pop(T &value) noexcept [[clang::nonblocking]];
