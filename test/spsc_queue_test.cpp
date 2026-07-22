@@ -109,33 +109,33 @@ TEST_F(QueueTest, WrapAroundBehavior) {
     EXPECT_EQ(queue_.readPosition(), 20);
 }
 
-// MARK: - Advanced Transactional Vector APIs
+// MARK: - Advanced Transactional APIs
 
-TEST_F(QueueTest, WriteAndReadVectorContiguous) {
-    // When empty, writeVector should return a contiguous span to the end of the buffer
-    auto writeVec = queue_.writeVector();
-    ASSERT_EQ(writeVec.first.size(), kCapacity);
-    ASSERT_EQ(writeVec.second.size(), 0);
+TEST_F(QueueTest, WriteAndReadTransactionContiguous) {
+    // When empty, beginWriteTransaction should return a contiguous span to the end of the buffer
+    auto writeTrans = queue_.beginWriteTransaction();
+    ASSERT_EQ(writeTrans.first_.size(), kCapacity);
+    ASSERT_EQ(writeTrans.second_.size(), 0);
 
     // Stage writing 2 elements manually
-    writeVec.first[0] = 100;
-    writeVec.first[1] = 201;
-    queue_.commitWrite(2);
+    writeTrans.first_[0] = 100;
+    writeTrans.first_[1] = 201;
+    EXPECT_TRUE(writeTrans.commit(2));
 
     EXPECT_EQ(queue_.availableToRead(), 2);
 
-    // Read vector should expose these 2 contiguous elements
-    auto readVec = queue_.readVector();
-    ASSERT_EQ(readVec.first.size(), 2);
-    ASSERT_EQ(readVec.second.size(), 0);
-    EXPECT_EQ(readVec.first[0], 100);
-    EXPECT_EQ(readVec.first[1], 201);
+    // Read transaction should expose these 2 contiguous elements
+    auto readTrans = queue_.beginReadTransaction();
+    ASSERT_EQ(readTrans.first_.size(), 2);
+    ASSERT_EQ(readTrans.second_.size(), 0);
+    EXPECT_EQ(readTrans.first_[0], 100);
+    EXPECT_EQ(readTrans.first_[1], 201);
 
-    queue_.commitRead(2);
+    EXPECT_TRUE(readTrans.commit(2));
     EXPECT_TRUE(queue_.isEmpty());
 }
 
-TEST_F(QueueTest, VectorWrapAroundSplitting) {
+TEST_F(QueueTest, TransactionWrapAroundSplitting) {
     // 1. Move the read/write pointers to an offset near the end.
     // Push 3 elements (indices 0, 1, 2 used).
     for (int i = 0; i < 3; ++i) {
@@ -152,21 +152,21 @@ TEST_F(QueueTest, VectorWrapAroundSplitting) {
     // Index 2: Valid data (Value: 20) <-- Read Position
     // Index 3: (Empty)                <-- Write Position
 
-    // 2. Test WRITE vector splitting.
+    // 2. Test WRITE transaction splitting.
     // There are 3 free slots (Index 3, Index 0, Index 1).
     // writeIndex is 3. toEnd is 4 - 3 = 1.
     // Because free (3) > toEnd (1), it must split!
-    auto writeVec = queue_.writeVector();
-    ASSERT_EQ(writeVec.first.size(), 1);  // Index 3
-    ASSERT_EQ(writeVec.second.size(), 2); // Indices 0 and 1
+    auto writeTrans = queue_.beginWriteTransaction();
+    ASSERT_EQ(writeTrans.first_.size(), 1);  // Index 3
+    ASSERT_EQ(writeTrans.second_.size(), 2); // Indices 0 and 1
 
     // Stage data into the write spans
-    writeVec.first[0] = 30;  // Goes into index 3
-    writeVec.second[0] = 40; // Goes into index 0
-    writeVec.second[1] = 50; // Goes into index 1
-    queue_.commitWrite(3);   // Write position is now 6 (6 & 3 = 2)
+    writeTrans.first_[0] = 30;  // Goes into index 3
+    writeTrans.second_[0] = 40; // Goes into index 0
+    writeTrans.second_[1] = 50; // Goes into index 1
+    writeTrans.commit(3);   // Write position is now 6 (6 & 3 = 2)
 
-    // 3. Test READ vector splitting.
+    // 3. Test READ transaction splitting.
     // Current layout:
     // Index 0: 40
     // Index 1: 50
@@ -174,16 +174,16 @@ TEST_F(QueueTest, VectorWrapAroundSplitting) {
     // Index 3: 30
     // Total used slots = 4 (Full queue). Read position is 2. toEnd is 4 - 2 = 2.
     // Because used (4) > toEnd (2), it must split!
-    auto readVec = queue_.readVector();
-    ASSERT_EQ(readVec.first.size(), 2);  // Indices 2 and 3
-    ASSERT_EQ(readVec.second.size(), 2); // Indices 0 and 1
+    auto readTrans = queue_.beginReadTransaction();
+    ASSERT_EQ(readTrans.first_.size(), 2);  // Indices 2 and 3
+    ASSERT_EQ(readTrans.second_.size(), 2); // Indices 0 and 1
 
-    EXPECT_EQ(readVec.first[0], 20);
-    EXPECT_EQ(readVec.first[1], 30);
-    EXPECT_EQ(readVec.second[0], 40);
-    EXPECT_EQ(readVec.second[1], 50);
+    EXPECT_EQ(readTrans.first_[0], 20);
+    EXPECT_EQ(readTrans.first_[1], 30);
+    EXPECT_EQ(readTrans.second_[0], 40);
+    EXPECT_EQ(readTrans.second_[1], 50);
 
-    queue_.commitRead(4);
+    EXPECT_TRUE(readTrans.commit(4));
     EXPECT_TRUE(queue_.isEmpty());
 }
 
