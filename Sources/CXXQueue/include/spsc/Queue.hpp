@@ -119,12 +119,14 @@ class Queue final {
 
     /// Discards values from the front of the queue and advances the read position.
     /// @note This method is only safe to call from the consumer.
+    /// @warning This method invalidates all open read transactions.
     /// @param count The maximum number of values to discard.
     /// @return The number of values actually discarded.
     SizeType discard(SizeType count = 1) noexcept [[clang::nonblocking]];
 
     /// Discards all values from the queue and advances the read position.
     /// @note This method is only safe to call from the consumer.
+    /// @warning This method invalidates all open read transactions.
     /// @return The number of values discarded.
     SizeType discardAll() noexcept [[clang::nonblocking]];
 
