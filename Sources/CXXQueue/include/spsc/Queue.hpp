@@ -15,6 +15,7 @@
 #include <new>
 #include <span>
 #include <type_traits>
+#include <utility>
 
 namespace spsc {
 
@@ -41,11 +42,6 @@ class Queue final {
     using SizeType = std::size_t;
     /// Atomic unsigned integer type.
     using AtomicSizeType = std::atomic<SizeType>;
-
-    /// A write vector.
-    using WriteVector = std::pair<std::span<T>, std::span<T>>;
-    /// A read vector.
-    using ReadVector = std::pair<std::span<const T>, std::span<const T>>;
 
     // MARK: Construction and Destruction
 
@@ -87,31 +83,33 @@ class Queue final {
     /// @return true if the queue contains no values.
     [[nodiscard]] bool isEmpty() const noexcept [[clang::nonblocking]];
 
-    /// Returns the number of vacant slots in the queue.
+    /// Returns the number of unoccupied positions in the queue.
     /// @note The result of this method is only accurate when called from the producer.
-    /// @return The number of unoccupied slots available for writing.
+    /// @return The number of unoccupied positions available for writing.
     [[nodiscard]] SizeType availableToWrite() const noexcept [[clang::nonblocking]];
 
-    /// Returns the number of occupied slots in the queue.
+    /// Returns the number of occupied positions in the queue.
     /// @note The result of this method is only accurate when called from the consumer.
-    /// @return The number of occupied slots available for reading.
+    /// @return The number of occupied positions available for reading.
     [[nodiscard]] SizeType availableToRead() const noexcept [[clang::nonblocking]];
 
     // MARK: Queue Operations
 
-    /// Copies a value to the next vacant slot and advances the write position.
+    /// Copies a value to the back of the queue and advances the write position.
     /// @note This method is only safe to call from the producer.
+    /// @warning This method invalidates all open write transactions.
     /// @param value The value to copy.
     /// @return false if the queue is full.
     [[nodiscard]] bool push(const T &value) noexcept [[clang::nonblocking]];
 
-    /// Copies a value from the first occupied slot and advances the read position.
+    /// Copies a value from the front of the queue and advances the read position.
     /// @note This method is only safe to call from the consumer.
+    /// @warning This method invalidates all open read transactions.
     /// @param value A reference to receive the value.
     /// @return false if the queue is empty.
     [[nodiscard]] bool pop(T &value) noexcept [[clang::nonblocking]];
 
-    /// Copies a value from the first occupied slot without advancing the read position.
+    /// Copies a value from the front of the queue without advancing the read position.
     /// @note This method is only safe to call from the consumer.
     /// @param value A reference to receive the value.
     /// @return false if the queue is empty.
@@ -119,40 +117,134 @@ class Queue final {
 
     // MARK: Discarding Values
 
-    /// Discards values and advances the read position.
+    /// Discards values from the front of the queue and advances the read position.
     /// @note This method is only safe to call from the consumer.
+    /// @warning This method invalidates all open read transactions.
     /// @param count The maximum number of values to discard.
     /// @return The number of values actually discarded.
     SizeType discard(SizeType count = 1) noexcept [[clang::nonblocking]];
 
-    /// Discards all values and advances the read position.
+    /// Discards all values from the queue and advances the read position.
     /// @note This method is only safe to call from the consumer.
+    /// @warning This method invalidates all open read transactions.
     /// @return The number of values discarded.
     SizeType discardAll() noexcept [[clang::nonblocking]];
 
     // MARK: Advanced Writing and Reading
 
-    /// Returns a write vector containing the current writable space.
+    /// A write transaction.
+    class WriteTransaction final {
+      public:
+        /// The first writable span.
+        std::span<T> first;
+        /// The second writable span.
+        std::span<T> second;
+
+        /// Returns the number of positions available to write in this transaction.
+        /// @return The number of positions available for writing.
+        [[nodiscard]] SizeType availableToWrite() const noexcept [[clang::nonblocking]];
+
+        /// Finalizes the transaction by advancing the write position.
+        /// @param count The number of values that were written.
+        /// @return false if count exceeds the writable space or the transaction is empty or has already been committed.
+        [[nodiscard]] bool commit(SizeType count) noexcept [[clang::nonblocking]];
+
+        WriteTransaction(const WriteTransaction &) = delete;
+        WriteTransaction &operator=(const WriteTransaction &) = delete;
+
+        WriteTransaction(WriteTransaction &&other) noexcept;
+        WriteTransaction &operator=(WriteTransaction &&) noexcept = delete;
+
+        /// Destroys the write transaction without committing.
+        ~WriteTransaction() noexcept = default;
+
+      private:
+        /// Creates an empty write transaction.
+        WriteTransaction() noexcept = default;
+
+        /// Creates a write transaction.
+        /// @param first The first writable span.
+        /// @param second The second writable span.
+        /// @param queue The owning queue.
+        /// @param position The base write position.
+        WriteTransaction(std::span<T> first, std::span<T> second, Queue *queue, SizeType position) noexcept;
+
+        /// Resets the transaction to the default state.
+        void reset() noexcept;
+
+        friend class Queue;
+        /// The owning instance.
+        Queue *queue_{nullptr};
+        /// The write position at the time the transaction was created.
+        SizeType position_{0};
+    };
+
+    /// Opens and returns a write transaction containing the current writable space.
+    ///
+    /// Opening multiple write transactions simultaneously is supported only if at most one of them is
+    /// committed.
     /// @note This method is only safe to call from the producer.
-    /// @return A pair of spans containing the current writable space.
-    [[nodiscard]] WriteVector writeVector() noexcept [[clang::nonblocking]];
+    /// @warning After any operation that advances the write position all previously opened write transactions become
+    /// invalid. Using an invalid transaction results in undefined behavior.
+    /// @return A write transaction containing the current writable space.
+    [[nodiscard]] WriteTransaction beginWrite() noexcept [[clang::nonblocking]];
 
-    /// Finalizes a write transaction by writing staged data to the ring buffer.
-    /// @warning The behavior is undefined if count is greater than the free space in the write vector.
-    /// @note This method is only safe to call from the producer.
-    /// @param count The number of values that were successfully written to the write vector.
-    void commitWrite(SizeType count) noexcept [[clang::nonblocking]];
+    /// A read transaction.
+    class ReadTransaction final {
+      public:
+        /// The first readable span.
+        std::span<const T> first;
+        /// The second readable span.
+        std::span<const T> second;
 
-    /// Returns a read vector containing the current readable data.
+        /// Returns the number of elements available to read in this transaction.
+        /// @return The number of elements available for reading.
+        [[nodiscard]] SizeType availableToRead() const noexcept [[clang::nonblocking]];
+
+        /// Finalizes the transaction by advancing the read position.
+        /// @param count The number of values that were read.
+        /// @return false if count exceeds the readable space or the transaction is empty or has already been committed.
+        [[nodiscard]] bool commit(SizeType count) noexcept [[clang::nonblocking]];
+
+        ReadTransaction(const ReadTransaction &) = delete;
+        ReadTransaction &operator=(const ReadTransaction &) = delete;
+
+        ReadTransaction(ReadTransaction &&other) noexcept;
+        ReadTransaction &operator=(ReadTransaction &&) noexcept = delete;
+
+        /// Destroys the read transaction without committing.
+        ~ReadTransaction() noexcept = default;
+
+      private:
+        /// Creates an empty read transaction.
+        ReadTransaction() noexcept = default;
+
+        /// Creates a read transaction.
+        /// @param first The first readable span.
+        /// @param second The second readable span.
+        /// @param queue The owning queue.
+        /// @param position The base read position.
+        ReadTransaction(std::span<const T> first, std::span<const T> second, Queue *queue, SizeType position) noexcept;
+
+        /// Resets the transaction to the default state.
+        void reset() noexcept;
+
+        friend class Queue;
+        /// The owning instance.
+        Queue *queue_{nullptr};
+        /// The read position at the time the transaction was created.
+        SizeType position_{0};
+    };
+
+    /// Opens and returns a read transaction containing the current readable space.
+    ///
+    /// Opening multiple read transactions simultaneously is supported only if at most one of them is
+    /// committed.
     /// @note This method is only safe to call from the consumer.
-    /// @return A pair of spans containing the current readable data.
-    [[nodiscard]] ReadVector readVector() const noexcept [[clang::nonblocking]];
-
-    /// Finalizes a read transaction by removing data from the front of the ring buffer.
-    /// @warning The behavior is undefined if count is greater than the available data in the read vector.
-    /// @note This method is only safe to call from the consumer.
-    /// @param count The number of values that were successfully read from the read vector.
-    void commitRead(SizeType count) noexcept [[clang::nonblocking]];
+    /// @warning After any operation that advances the read position all previously opened read transactions become
+    /// invalid. Using an invalid transaction results in undefined behavior.
+    /// @return A read transaction containing the current readable space.
+    [[nodiscard]] ReadTransaction beginRead() noexcept [[clang::nonblocking]];
 
   private:
     /// The buffer containing the values.
@@ -307,7 +399,45 @@ inline auto Queue<T, N>::discardAll() noexcept -> SizeType {
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline auto Queue<T, N>::writeVector() noexcept -> WriteVector {
+inline auto Queue<T, N>::WriteTransaction::availableToWrite() const noexcept -> SizeType {
+    return first.size() + second.size();
+}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline bool Queue<T, N>::WriteTransaction::commit(SizeType count) noexcept {
+    if (queue_ == nullptr || count > availableToWrite()) [[unlikely]] {
+        return false;
+    }
+    queue_->writePosition_.store(position_ + count, std::memory_order_release);
+    reset();
+    return true;
+}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline Queue<T, N>::WriteTransaction::WriteTransaction(WriteTransaction &&other) noexcept
+    : first(std::exchange(other.first, {})), second(std::exchange(other.second, {})),
+      queue_(std::exchange(other.queue_, nullptr)), position_(std::exchange(other.position_, 0)) {}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline Queue<T, N>::WriteTransaction::WriteTransaction(std::span<T> first, std::span<T> second, Queue *queue,
+                                                       SizeType position) noexcept
+    : first(first), second(second), queue_(queue), position_(position) {}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline void Queue<T, N>::WriteTransaction::reset() noexcept {
+    first = {};
+    second = {};
+    queue_ = nullptr;
+    position_ = 0;
+}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline auto Queue<T, N>::beginWrite() noexcept -> WriteTransaction {
     const auto writePos = writePosition_.load(std::memory_order_relaxed);
     const auto readPos = readPosition_.load(std::memory_order_acquire);
     const auto used = writePos - readPos;
@@ -321,21 +451,52 @@ inline auto Queue<T, N>::writeVector() noexcept -> WriteVector {
     const auto toEnd = N - writeIndex;
 
     if (free > toEnd) [[unlikely]] {
-        return {{buffer_ + writeIndex, toEnd}, {buffer_, free - toEnd}};
+        return WriteTransaction({buffer_ + writeIndex, toEnd}, {buffer_, free - toEnd}, this, writePos);
     }
-    return {{buffer_ + writeIndex, free}, {}};
+    return WriteTransaction({buffer_ + writeIndex, free}, {}, this, writePos);
 }
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline void Queue<T, N>::commitWrite(SizeType count) noexcept {
-    const auto writePos = writePosition_.load(std::memory_order_relaxed);
-    writePosition_.store(writePos + count, std::memory_order_release);
+inline auto Queue<T, N>::ReadTransaction::availableToRead() const noexcept -> SizeType {
+    return first.size() + second.size();
 }
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline auto Queue<T, N>::readVector() const noexcept -> ReadVector {
+inline bool Queue<T, N>::ReadTransaction::commit(SizeType count) noexcept {
+    if (queue_ == nullptr || count > availableToRead()) [[unlikely]] {
+        return false;
+    }
+    queue_->readPosition_.store(position_ + count, std::memory_order_release);
+    reset();
+    return true;
+}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline Queue<T, N>::ReadTransaction::ReadTransaction(ReadTransaction &&other) noexcept
+    : first(std::exchange(other.first, {})), second(std::exchange(other.second, {})),
+      queue_(std::exchange(other.queue_, nullptr)), position_(std::exchange(other.position_, 0)) {}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline Queue<T, N>::ReadTransaction::ReadTransaction(std::span<const T> first, std::span<const T> second, Queue *queue,
+                                                     SizeType position) noexcept
+    : first(first), second(second), queue_(queue), position_(position) {}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline void Queue<T, N>::ReadTransaction::reset() noexcept {
+    first = {};
+    second = {};
+    queue_ = nullptr;
+    position_ = 0;
+}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline auto Queue<T, N>::beginRead() noexcept -> ReadTransaction {
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
     const auto used = writePos - readPos;
@@ -348,16 +509,9 @@ inline auto Queue<T, N>::readVector() const noexcept -> ReadVector {
     const auto toEnd = N - readIndex;
 
     if (used > toEnd) [[unlikely]] {
-        return {{buffer_ + readIndex, toEnd}, {buffer_, used - toEnd}};
+        return ReadTransaction({buffer_ + readIndex, toEnd}, {buffer_, used - toEnd}, this, readPos);
     }
-    return {{buffer_ + readIndex, used}, {}};
-}
-
-template <ValueLike T, std::size_t N>
-    requires ValidPowerOfTwo<N>
-inline void Queue<T, N>::commitRead(SizeType count) noexcept {
-    const auto readPos = readPosition_.load(std::memory_order_relaxed);
-    readPosition_.store(readPos + count, std::memory_order_release);
+    return ReadTransaction({buffer_ + readIndex, used}, {}, this, readPos);
 }
 
 } /* namespace spsc */
