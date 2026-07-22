@@ -158,7 +158,7 @@ class Queue final {
 
         friend class Queue;
         /// The owning instance.
-        Queue *queue_;
+        Queue *queue_{nullptr};
     };
 
     /// Opens and returns a write transaction containing the current writable space.
@@ -198,7 +198,7 @@ class Queue final {
 
         friend class Queue;
         /// The owning instance.
-        Queue *queue_;
+        Queue *queue_{nullptr};
     };
 
     /// Opens and returns a read transaction containing the current readable space.
