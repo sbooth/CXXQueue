@@ -149,7 +149,7 @@ class Queue final {
         WriteTransaction(const WriteTransaction &) = delete;
         WriteTransaction &operator=(const WriteTransaction &) = delete;
 
-        WriteTransaction(WriteTransaction &&) noexcept = default;
+        WriteTransaction(WriteTransaction &&other) noexcept;
         WriteTransaction &operator=(WriteTransaction &&) noexcept = default;
 
         /// Destroys the write transaction without committing.
@@ -199,7 +199,7 @@ class Queue final {
         ReadTransaction(const ReadTransaction &) = delete;
         ReadTransaction &operator=(const ReadTransaction &) = delete;
 
-        ReadTransaction(ReadTransaction &&) noexcept = default;
+        ReadTransaction(ReadTransaction &&other) noexcept;
         ReadTransaction &operator=(ReadTransaction &&) noexcept = default;
 
         /// Destroys the read transaction without committing.
@@ -404,7 +404,14 @@ inline bool Queue<T, N>::WriteTransaction::commit(SizeType count) noexcept {
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline Queue<T, N>::WriteTransaction::WriteTransaction(std::span<T> first, std::span<T> second, Queue *queue, SizeType position) noexcept
+inline Queue<T, N>::WriteTransaction::WriteTransaction(WriteTransaction &&other) noexcept
+    : first(std::exchange(other.first, {})), second(std::exchange(other.second, {})),
+      queue_(std::exchange(other.queue_, nullptr)), position_(other.position_) {}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline Queue<T, N>::WriteTransaction::WriteTransaction(std::span<T> first, std::span<T> second, Queue *queue,
+                                                       SizeType position) noexcept
     : first(first), second(second), queue_(queue), position_(position) {}
 
 template <ValueLike T, std::size_t N>
@@ -452,8 +459,14 @@ inline bool Queue<T, N>::ReadTransaction::commit(SizeType count) noexcept {
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline Queue<T, N>::ReadTransaction::ReadTransaction(std::span<const T> first, std::span<const T> second,
-                                                     Queue *queue, SizeType position) noexcept
+inline Queue<T, N>::ReadTransaction::ReadTransaction(ReadTransaction &&other) noexcept
+    : first(std::exchange(other.first, {})), second(std::exchange(other.second, {})),
+      queue_(std::exchange(other.queue_, nullptr)), position_(other.position_) {}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline Queue<T, N>::ReadTransaction::ReadTransaction(std::span<const T> first, std::span<const T> second, Queue *queue,
+                                                     SizeType position) noexcept
     : first(first), second(second), queue_(queue), position_(position) {}
 
 template <ValueLike T, std::size_t N>
