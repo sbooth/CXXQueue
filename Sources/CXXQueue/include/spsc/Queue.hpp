@@ -152,6 +152,9 @@ class Queue final {
         WriteTransaction(const WriteTransaction &) = delete;
         WriteTransaction &operator=(const WriteTransaction &) = delete;
 
+        /// Creates a write transaction by moving another.
+        /// @note The moved-from transaction is left empty.
+        /// @param other The write transaction to move.
         WriteTransaction(WriteTransaction &&other) noexcept;
         WriteTransaction &operator=(WriteTransaction &&) noexcept = delete;
 
@@ -209,6 +212,9 @@ class Queue final {
         ReadTransaction(const ReadTransaction &) = delete;
         ReadTransaction &operator=(const ReadTransaction &) = delete;
 
+        /// Creates a read transaction by moving another.
+        /// @note The moved-from transaction is left empty.
+        /// @param other The read transaction to move.
         ReadTransaction(ReadTransaction &&other) noexcept;
         ReadTransaction &operator=(ReadTransaction &&) noexcept = delete;
 
