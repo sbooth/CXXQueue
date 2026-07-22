@@ -429,10 +429,9 @@ inline auto Queue<T, N>::WriteTransaction::copyFrom(std::span<const T> src) noex
     const auto n1 = std::min(src.size(), first.size());
     std::copy_n(src.data(), n1, first.data());
 
-    const auto remaining = src.subspan(n1);
-    const auto n2 = std::min(remaining.size(), second.size());
+    const auto n2 = std::min(src.size() - n1, second.size());
     if (n2 > 0) {
-        std::copy_n(remaining.data(), n2, second.data());
+        std::copy_n(src.data() + n1, n2, second.data());
     }
 
     return n1 + n2;
@@ -507,10 +506,9 @@ inline auto Queue<T, N>::ReadTransaction::copyTo(std::span<T> dst) noexcept -> S
     const auto n1 = std::min(dst.size(), first.size());
     std::copy_n(first.data(), n1, dst.data());
 
-    const auto remaining = dst.subspan(n1);
-    const auto n2 = std::min(remaining.size(), second.size());
+    const auto n2 = std::min(dst.size() - n1, second.size());
     if (n2 > 0) {
-        std::copy_n(second.data(), n2, remaining.data());
+        std::copy_n(second.data(), n2, dst.data() + n1);
     }
 
     return n1 + n2;
