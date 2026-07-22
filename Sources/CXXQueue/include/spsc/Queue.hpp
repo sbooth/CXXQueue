@@ -31,8 +31,8 @@ concept ValueLike = std::is_object_v<std::remove_cvref_t<T>> && std::is_triviall
 /// This class is thread safe when used with a single producer and a single consumer.
 ///
 /// @note The queue is only safe if exactly one thread performs producer operations and exactly one thread performs
-/// consumer operations. Calling producer or consumer APIs concurrently from multiple threads results in undefined
-/// behavior.
+/// consumer operations. Calling producer APIs concurrently from multiple threads or consumer APIs concurrently from
+/// multiple threads results in undefined behavior.
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 class Queue final {
