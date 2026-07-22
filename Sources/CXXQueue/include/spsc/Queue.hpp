@@ -15,6 +15,7 @@
 #include <new>
 #include <span>
 #include <type_traits>
+#include <utility>
 
 namespace spsc {
 
@@ -150,7 +151,7 @@ class Queue final {
         WriteTransaction &operator=(const WriteTransaction &) = delete;
 
         WriteTransaction(WriteTransaction &&other) noexcept;
-        WriteTransaction &operator=(WriteTransaction &&) noexcept = default;
+        WriteTransaction &operator=(WriteTransaction &&other) noexcept;
 
         /// Destroys the write transaction without committing.
         ~WriteTransaction() noexcept = default;
@@ -201,7 +202,7 @@ class Queue final {
         ReadTransaction &operator=(const ReadTransaction &) = delete;
 
         ReadTransaction(ReadTransaction &&other) noexcept;
-        ReadTransaction &operator=(ReadTransaction &&) noexcept = default;
+        ReadTransaction &operator=(ReadTransaction &&other) noexcept;
 
         /// Destroys the read transaction without committing.
         ~ReadTransaction() noexcept = default;
@@ -408,7 +409,19 @@ template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline Queue<T, N>::WriteTransaction::WriteTransaction(WriteTransaction &&other) noexcept
     : first(std::exchange(other.first, {})), second(std::exchange(other.second, {})),
-      queue_(std::exchange(other.queue_, nullptr)), position_(other.position_) {}
+      queue_(std::exchange(other.queue_, nullptr)), position_(std::exchange(other.position_, 0)) {}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline auto Queue<T, N>::WriteTransaction::operator=(WriteTransaction &&other) noexcept -> WriteTransaction & {
+    if (this != &other) {
+        first = std::exchange(other.first, {});
+        second = std::exchange(other.second, {});
+        queue_ = std::exchange(other.queue_, nullptr);
+        position_ = std::exchange(other.position_, 0);
+    }
+    return *this;
+}
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
@@ -463,7 +476,19 @@ template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline Queue<T, N>::ReadTransaction::ReadTransaction(ReadTransaction &&other) noexcept
     : first(std::exchange(other.first, {})), second(std::exchange(other.second, {})),
-      queue_(std::exchange(other.queue_, nullptr)), position_(other.position_) {}
+      queue_(std::exchange(other.queue_, nullptr)), position_(std::exchange(other.position_, 0)) {}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline auto Queue<T, N>::ReadTransaction::operator=(ReadTransaction &&other) noexcept -> ReadTransaction & {
+    if (this != &other) {
+        first = std::exchange(other.first, {});
+        second = std::exchange(other.second, {});
+        queue_ = std::exchange(other.queue_, nullptr);
+        position_ = std::exchange(other.position_, 0);
+    }
+    return *this;
+}
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
