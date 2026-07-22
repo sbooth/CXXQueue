@@ -57,7 +57,7 @@ TEST_F(QueueTest, PushUntilFullAndPopUntilEmpty) {
     EXPECT_FALSE(queue_.pop(val)); // Should fail when empty
 }
 
-// MARK: - Discard and Drain
+// MARK: - Discard
 
 TEST_F(QueueTest, DiscardElements) {
     for (int i = 0; i < 4; ++i) {
@@ -77,12 +77,12 @@ TEST_F(QueueTest, DiscardElements) {
     EXPECT_TRUE(queue_.isEmpty());
 }
 
-TEST_F(QueueTest, DrainElements) {
+TEST_F(QueueTest, DiscardAllElements) {
     for (int i = 0; i < 3; ++i) {
         queue_.push(i);
     }
 
-    EXPECT_EQ(queue_.drain(), 3);
+    EXPECT_EQ(queue_.discardAll(), 3);
     EXPECT_TRUE(queue_.isEmpty());
     EXPECT_EQ(queue_.size(), 0);
     EXPECT_EQ(queue_.free(), kCapacity);

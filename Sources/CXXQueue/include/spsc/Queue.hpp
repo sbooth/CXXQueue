@@ -127,7 +127,7 @@ class Queue final {
     /// Discards all values and advances the read position.
     /// @note This method is only safe to call from the consumer.
     /// @return The number of values discarded.
-    SizeType drain() noexcept [[clang::nonblocking]];
+    SizeType discardAll() noexcept [[clang::nonblocking]];
 
     // MARK: Advanced Writing and Reading
 
@@ -289,7 +289,7 @@ inline auto Queue<T, N>::discard(SizeType count) noexcept -> SizeType {
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline auto Queue<T, N>::drain() noexcept -> SizeType {
+inline auto Queue<T, N>::discardAll() noexcept -> SizeType {
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
     const auto used = writePos - readPos;
