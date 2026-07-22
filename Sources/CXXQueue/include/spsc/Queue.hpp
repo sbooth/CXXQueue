@@ -157,12 +157,17 @@ class Queue final {
     /// The size of buffer_  minus one.
     static constexpr auto capacityMask_ = N - 1;
 
-    /// The free-running write location.
-    alignas(std::hardware_destructive_interference_size) AtomicSizeType writePosition_{0};
-    /// The free-running read location.
-    alignas(std::hardware_destructive_interference_size) AtomicSizeType readPosition_{0};
+    /// An aligned atomic unsigned integer type.
+    struct alignas(std::hardware_destructive_interference_size) AtomicPosition final {
+        /// The value.
+        AtomicSizeType value_;
+        static_assert(AtomicSizeType::is_always_lock_free, "Lock-free AtomicSizeType required");
+    };
 
-    static_assert(AtomicSizeType::is_always_lock_free, "Lock-free AtomicSizeType required");
+    /// The free-running write location.
+    AtomicPosition writePosition_{0};
+    /// The free-running read location.
+    AtomicPosition readPosition_{0};
 };
 
 // MARK: - Implementation -
@@ -172,13 +177,13 @@ class Queue final {
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline auto Queue<T, N>::writePosition() const noexcept -> SizeType {
-    return writePosition_.load(std::memory_order_relaxed);
+    return writePosition_.value_.load(std::memory_order_relaxed);
 }
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline auto Queue<T, N>::readPosition() const noexcept -> SizeType {
-    return readPosition_.load(std::memory_order_relaxed);
+    return readPosition_.value_.load(std::memory_order_relaxed);
 }
 
 // MARK: Statistics
@@ -186,32 +191,32 @@ inline auto Queue<T, N>::readPosition() const noexcept -> SizeType {
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline bool Queue<T, N>::isFull() const noexcept {
-    const auto writePos = writePosition_.load(std::memory_order_relaxed);
-    const auto readPos = readPosition_.load(std::memory_order_acquire);
+    const auto writePos = writePosition_.value_.load(std::memory_order_relaxed);
+    const auto readPos = readPosition_.value_.load(std::memory_order_acquire);
     return (writePos - readPos) == N;
 }
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline bool Queue<T, N>::isEmpty() const noexcept {
-    const auto writePos = writePosition_.load(std::memory_order_acquire);
-    const auto readPos = readPosition_.load(std::memory_order_relaxed);
+    const auto writePos = writePosition_.value_.load(std::memory_order_acquire);
+    const auto readPos = readPosition_.value_.load(std::memory_order_relaxed);
     return writePos == readPos;
 }
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline auto Queue<T, N>::free() const noexcept -> SizeType {
-    const auto writePos = writePosition_.load(std::memory_order_relaxed);
-    const auto readPos = readPosition_.load(std::memory_order_acquire);
+    const auto writePos = writePosition_.value_.load(std::memory_order_relaxed);
+    const auto readPos = readPosition_.value_.load(std::memory_order_acquire);
     return N - (writePos - readPos);
 }
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline auto Queue<T, N>::count() const noexcept -> SizeType {
-    const auto writePos = writePosition_.load(std::memory_order_acquire);
-    const auto readPos = readPosition_.load(std::memory_order_relaxed);
+    const auto writePos = writePosition_.value_.load(std::memory_order_acquire);
+    const auto readPos = readPosition_.value_.load(std::memory_order_relaxed);
     return writePos - readPos;
 }
 
@@ -220,8 +225,8 @@ inline auto Queue<T, N>::count() const noexcept -> SizeType {
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline bool Queue<T, N>::push(const T &value) noexcept {
-    const auto writePos = writePosition_.load(std::memory_order_relaxed);
-    const auto readPos = readPosition_.load(std::memory_order_acquire);
+    const auto writePos = writePosition_.value_.load(std::memory_order_relaxed);
+    const auto readPos = readPosition_.value_.load(std::memory_order_acquire);
     const auto used = writePos - readPos;
 
     if (used == N) {
@@ -229,30 +234,30 @@ inline bool Queue<T, N>::push(const T &value) noexcept {
     }
 
     buffer_[writePos & capacityMask_] = value;
-    writePosition_.store(writePos + 1, std::memory_order_release);
+    writePosition_.value_.store(writePos + 1, std::memory_order_release);
     return true;
 }
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline bool Queue<T, N>::pop(T &value) noexcept {
-    const auto writePos = writePosition_.load(std::memory_order_acquire);
-    const auto readPos = readPosition_.load(std::memory_order_relaxed);
+    const auto writePos = writePosition_.value_.load(std::memory_order_acquire);
+    const auto readPos = readPosition_.value_.load(std::memory_order_relaxed);
 
     if (writePos == readPos) {
         return false;
     }
 
     value = buffer_[readPos & capacityMask_];
-    readPosition_.store(readPos + 1, std::memory_order_release);
+    readPosition_.value_.store(readPos + 1, std::memory_order_release);
     return true;
 }
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline bool Queue<T, N>::peek(T &value) const noexcept {
-    const auto writePos = writePosition_.load(std::memory_order_acquire);
-    const auto readPos = readPosition_.load(std::memory_order_relaxed);
+    const auto writePos = writePosition_.value_.load(std::memory_order_acquire);
+    const auto readPos = readPosition_.value_.load(std::memory_order_relaxed);
 
     if (writePos == readPos) {
         return false;
@@ -271,8 +276,8 @@ inline auto Queue<T, N>::discard(SizeType count) noexcept -> SizeType {
         return 0;
     }
 
-    const auto writePos = writePosition_.load(std::memory_order_acquire);
-    const auto readPos = readPosition_.load(std::memory_order_relaxed);
+    const auto writePos = writePosition_.value_.load(std::memory_order_acquire);
+    const auto readPos = readPosition_.value_.load(std::memory_order_relaxed);
     const auto used = writePos - readPos;
 
     if (used == 0) {
@@ -280,22 +285,22 @@ inline auto Queue<T, N>::discard(SizeType count) noexcept -> SizeType {
     }
 
     const auto n = std::min(used, count);
-    readPosition_.store(readPos + n, std::memory_order_release);
+    readPosition_.value_.store(readPos + n, std::memory_order_release);
     return n;
 }
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline auto Queue<T, N>::drain() noexcept -> SizeType {
-    const auto writePos = writePosition_.load(std::memory_order_acquire);
-    const auto readPos = readPosition_.load(std::memory_order_relaxed);
+    const auto writePos = writePosition_.value_.load(std::memory_order_acquire);
+    const auto readPos = readPosition_.value_.load(std::memory_order_relaxed);
     const auto used = writePos - readPos;
 
     if (used == 0) {
         return 0;
     }
 
-    readPosition_.store(writePos, std::memory_order_release);
+    readPosition_.value_.store(writePos, std::memory_order_release);
     return used;
 }
 
@@ -304,8 +309,8 @@ inline auto Queue<T, N>::drain() noexcept -> SizeType {
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline auto Queue<T, N>::writeVector() noexcept -> WriteVector {
-    const auto writePos = writePosition_.load(std::memory_order_relaxed);
-    const auto readPos = readPosition_.load(std::memory_order_acquire);
+    const auto writePos = writePosition_.value_.load(std::memory_order_relaxed);
+    const auto readPos = readPosition_.value_.load(std::memory_order_acquire);
     const auto used = writePos - readPos;
     const auto free = N - used;
 
@@ -325,15 +330,15 @@ inline auto Queue<T, N>::writeVector() noexcept -> WriteVector {
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline void Queue<T, N>::commitWrite(SizeType count) noexcept {
-    const auto writePos = writePosition_.load(std::memory_order_relaxed);
-    writePosition_.store(writePos + count, std::memory_order_release);
+    const auto writePos = writePosition_.value_.load(std::memory_order_relaxed);
+    writePosition_.value_.store(writePos + count, std::memory_order_release);
 }
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline auto Queue<T, N>::readVector() const noexcept -> ReadVector {
-    const auto writePos = writePosition_.load(std::memory_order_acquire);
-    const auto readPos = readPosition_.load(std::memory_order_relaxed);
+    const auto writePos = writePosition_.value_.load(std::memory_order_acquire);
+    const auto readPos = readPosition_.value_.load(std::memory_order_relaxed);
     const auto used = writePos - readPos;
 
     if (used == 0) [[unlikely]] {
@@ -352,8 +357,8 @@ inline auto Queue<T, N>::readVector() const noexcept -> ReadVector {
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline void Queue<T, N>::commitRead(SizeType count) noexcept {
-    const auto readPos = readPosition_.load(std::memory_order_relaxed);
-    readPosition_.store(readPos + count, std::memory_order_release);
+    const auto readPos = readPosition_.value_.load(std::memory_order_relaxed);
+    readPosition_.value_.store(readPos + count, std::memory_order_release);
 }
 
 } /* namespace spsc */
