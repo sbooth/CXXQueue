@@ -223,9 +223,8 @@ inline bool Queue<T, N>::push(const T &value) noexcept {
     const auto writePos = writePosition_.load(std::memory_order_relaxed);
     const auto readPos = readPosition_.load(std::memory_order_acquire);
     const auto used = writePos - readPos;
-    const auto free = N - used;
 
-    if (free == 0) {
+    if (used == N) {
         return false;
     }
 
@@ -239,9 +238,8 @@ template <ValueLike T, std::size_t N>
 inline bool Queue<T, N>::pop(T &value) noexcept {
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
-    const auto used = writePos - readPos;
 
-    if (used == 0) {
+    if (writePos == readPos) {
         return false;
     }
 
@@ -255,9 +253,8 @@ template <ValueLike T, std::size_t N>
 inline bool Queue<T, N>::peek(T &value) const noexcept {
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
-    const auto used = writePos - readPos;
 
-    if (used == 0) {
+    if (writePos == readPos) {
         return false;
     }
 
