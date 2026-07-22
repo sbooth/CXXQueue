@@ -26,7 +26,7 @@ TEST_F(QueueTest, PushAndPopSingleElement) {
 
     EXPECT_TRUE(queue_.push(42));
     EXPECT_FALSE(queue_.isEmpty());
-    EXPECT_EQ(queue_.count(), 1);
+    EXPECT_EQ(queue_.size(), 1);
 
     EXPECT_TRUE(queue_.peek(val));
     EXPECT_EQ(val, 42);
@@ -66,7 +66,7 @@ TEST_F(QueueTest, DiscardElements) {
 
     // Discard a subset
     EXPECT_EQ(queue_.discard(2), 2);
-    EXPECT_EQ(queue_.count(), 2);
+    EXPECT_EQ(queue_.size(), 2);
 
     int val = 0;
     EXPECT_TRUE(queue_.pop(val));
@@ -84,7 +84,7 @@ TEST_F(QueueTest, DrainElements) {
 
     EXPECT_EQ(queue_.drain(), 3);
     EXPECT_TRUE(queue_.isEmpty());
-    EXPECT_EQ(queue_.count(), 0);
+    EXPECT_EQ(queue_.size(), 0);
     EXPECT_EQ(queue_.free(), kCapacity);
 }
 
@@ -122,7 +122,7 @@ TEST_F(QueueTest, WriteAndReadVectorContiguous) {
     writeVec.first[1] = 201;
     queue_.commitWrite(2);
 
-    EXPECT_EQ(queue_.count(), 2);
+    EXPECT_EQ(queue_.size(), 2);
 
     // Read vector should expose these 2 contiguous elements
     auto readVec = queue_.readVector();

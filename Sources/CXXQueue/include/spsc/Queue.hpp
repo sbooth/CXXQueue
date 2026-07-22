@@ -59,7 +59,7 @@ class Queue final {
     // MARK: Information
 
     /// The capacity of the queue.
-    static constexpr auto size = N;
+    static constexpr auto capacity = N;
 
     /// Returns the current write position in the queue.
     /// @note The result of this method is only accurate when called from the producer.
@@ -91,7 +91,7 @@ class Queue final {
     /// Returns the number of occupied slots in the queue.
     /// @note The result of this method is only accurate when called from the consumer.
     /// @return The number of occupied slots available for reading.
-    [[nodiscard]] SizeType count() const noexcept [[clang::nonblocking]];
+    [[nodiscard]] SizeType size() const noexcept [[clang::nonblocking]];
 
     // MARK: Queue Operations
 
@@ -209,7 +209,7 @@ inline auto Queue<T, N>::free() const noexcept -> SizeType {
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline auto Queue<T, N>::count() const noexcept -> SizeType {
+inline auto Queue<T, N>::size() const noexcept -> SizeType {
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
     return writePos - readPos;
