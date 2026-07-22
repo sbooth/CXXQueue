@@ -144,6 +144,11 @@ class Queue final {
         /// @return The number of positions available for writing.
         [[nodiscard]] SizeType availableToWrite() const noexcept [[clang::nonblocking]];
 
+        /// Copies elements into the transaction buffer and returns the number written.
+        /// @param src A span containing the values to copy.
+        /// @return The number of elements copied.
+        [[nodiscard]] SizeType copyFrom(std::span<const T> src) noexcept [[clang::nonblocking]];
+
         /// Finalizes the transaction by advancing the write position.
         /// @param count The number of values that were written.
         /// @return false if count exceeds the writable space or the transaction is empty or has already been committed.
@@ -203,6 +208,11 @@ class Queue final {
         /// Returns the number of elements available to read in this transaction.
         /// @return The number of elements available for reading.
         [[nodiscard]] SizeType availableToRead() const noexcept [[clang::nonblocking]];
+
+        /// Copies elements from the transaction buffer into dst and returns the number read.
+        /// @param dst A span to receive the copied values.
+        /// @return The number of elements copied.
+        [[nodiscard]] SizeType copyTo(std::span<T> dst) noexcept [[clang::nonblocking]];
 
         /// Finalizes the transaction by advancing the read position.
         /// @param count The number of values that were read.
@@ -411,6 +421,24 @@ inline auto Queue<T, N>::WriteTransaction::availableToWrite() const noexcept -> 
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
+inline auto Queue<T, N>::WriteTransaction::copyFrom(std::span<const T> src) noexcept -> SizeType {
+    if (src.empty() || queue_ == nullptr) [[unlikely]] {
+        return 0;
+    }
+
+    const auto n1 = std::min(src.size(), first.size());
+    std::copy_n(src.data(), n1, first.data());
+
+    const auto n2 = std::min(src.size() - n1, second.size());
+    if (n2 > 0) {
+        std::copy_n(src.data() + n1, n2, second.data());
+    }
+
+    return n1 + n2;
+}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
 inline bool Queue<T, N>::WriteTransaction::commit(SizeType count) noexcept {
     if (queue_ == nullptr || count > availableToWrite()) [[unlikely]] {
         return false;
@@ -466,6 +494,24 @@ template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline auto Queue<T, N>::ReadTransaction::availableToRead() const noexcept -> SizeType {
     return first.size() + second.size();
+}
+
+template <ValueLike T, std::size_t N>
+    requires ValidPowerOfTwo<N>
+inline auto Queue<T, N>::ReadTransaction::copyTo(std::span<T> dst) noexcept -> SizeType {
+    if (dst.empty() || queue_ == nullptr) [[unlikely]] {
+        return 0;
+    }
+
+    const auto n1 = std::min(dst.size(), first.size());
+    std::copy_n(first.data(), n1, dst.data());
+
+    const auto n2 = std::min(dst.size() - n1, second.size());
+    if (n2 > 0) {
+        std::copy_n(second.data(), n2, dst.data() + n1);
+    }
+
+    return n1 + n2;
 }
 
 template <ValueLike T, std::size_t N>
