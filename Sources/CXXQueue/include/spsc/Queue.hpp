@@ -138,7 +138,7 @@ class Queue final {
         /// Finalizes the write transaction by committing staged data to the back of the queue.
         /// @param count The number of values that were written.
         /// @return false if count exceeds the writable space or the transaction has already been committed.
-        bool commit(SizeType count) noexcept;
+        [[nodiscard]] bool commit(SizeType count) noexcept;
 
         WriteTransaction(const WriteTransaction &) = delete;
         WriteTransaction &operator=(const WriteTransaction &) = delete;
@@ -178,7 +178,7 @@ class Queue final {
         /// Finalizes the read transaction by removing data from the front of the queue.
         /// @param count The number of values that were read.
         /// @return false if count exceeds the readable space or the transaction has already been committed.
-        bool commit(SizeType count) noexcept;
+        [[nodiscard]] bool commit(SizeType count) noexcept;
 
         ReadTransaction(const ReadTransaction &) = delete;
         ReadTransaction &operator=(const ReadTransaction &) = delete;
