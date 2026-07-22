@@ -142,7 +142,7 @@ class Queue final {
         /// @return The number of positions available for writing.
         [[nodiscard]] SizeType availableToWrite() const noexcept [[clang::nonblocking]];
 
-        /// Finalizes the write transaction by committing staged data to the back of the queue.
+        /// Finalizes the transaction by advancing the write position.
         /// @param count The number of values that were written.
         /// @return false if count exceeds the writable space or the transaction has already been committed.
         [[nodiscard]] bool commit(SizeType count) noexcept [[clang::nonblocking]];
@@ -175,9 +175,12 @@ class Queue final {
     };
 
     /// Opens and returns a write transaction containing the current writable space.
+    ///
+    /// Opening multiple write transactions simultaneously is supported only if at most one of them is
+    /// committed.
     /// @note This method is only safe to call from the producer.
-    /// @warning Opening multiple write transactions simultaneously is supported only if at most one of them is
-    /// committed. After any producer operation all previously opened write transactions become invalid.
+    /// @warning After any operation that advances the write position all previously opened write transactions become
+    /// invalid.
     /// @return A write transaction containing the current writable space.
     [[nodiscard]] WriteTransaction beginWrite() noexcept [[clang::nonblocking]];
 
@@ -193,7 +196,7 @@ class Queue final {
         /// @return The number of elements available for reading.
         [[nodiscard]] SizeType availableToRead() const noexcept [[clang::nonblocking]];
 
-        /// Finalizes the read transaction by removing data from the front of the queue.
+        /// Finalizes the transaction by advancing the read position.
         /// @param count The number of values that were read.
         /// @return false if count exceeds the readable space or the transaction has already been committed.
         [[nodiscard]] bool commit(SizeType count) noexcept [[clang::nonblocking]];
@@ -226,9 +229,12 @@ class Queue final {
     };
 
     /// Opens and returns a read transaction containing the current readable space.
+    ///
+    /// Opening multiple read transactions simultaneously is supported only if at most one of them is
+    /// committed.
     /// @note This method is only safe to call from the consumer.
-    /// @warning Opening multiple read transactions simultaneously is supported only if at most one of them is
-    /// committed. After any consumer operation all previously opened read transactions become invalid.
+    /// @warning After any operation that advances the read position all previously opened read transactions become
+    /// invalid.
     /// @return A read transaction containing the current readable space.
     [[nodiscard]] ReadTransaction beginRead() noexcept [[clang::nonblocking]];
 
