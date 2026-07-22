@@ -119,7 +119,7 @@ class Queue final {
     /// @note This method is only safe to call from the consumer.
     /// @param count The maximum number of values to discard.
     /// @return The number of values actually discarded.
-    [[nodiscard]] SizeType discard(SizeType count = 1) noexcept [[clang::nonblocking]];
+    SizeType discard(SizeType count = 1) noexcept [[clang::nonblocking]];
 
     /// Discards all values and advances the read position.
     /// @note This method is only safe to call from the consumer.
