@@ -106,7 +106,7 @@ class Queue final {
     /// @return false if the queue is empty.
     [[nodiscard]] bool pop(T &value) noexcept [[clang::nonblocking]];
 
-    /// Copies a value from the back of the queue without advancing the read position.
+    /// Copies a value from the front of the queue without advancing the read position.
     /// @note This method is only safe to call from the consumer.
     /// @param value A reference to receive the value.
     /// @return false if the queue is empty.
