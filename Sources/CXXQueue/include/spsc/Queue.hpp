@@ -140,12 +140,12 @@ class Queue final {
 
         /// Returns the number of positions available to write.
         /// @return The number of positions available for writing.
-        [[nodiscard]] SizeType availableToWrite() const noexcept;
+        [[nodiscard]] SizeType availableToWrite() const noexcept [[clang::nonblocking]];
 
         /// Finalizes the write transaction by committing staged data to the back of the queue.
         /// @param count The number of values that were written.
         /// @return false if count exceeds the writable space or the transaction has already been committed.
-        [[nodiscard]] bool commit(SizeType count) noexcept;
+        [[nodiscard]] bool commit(SizeType count) noexcept [[clang::nonblocking]];
 
         WriteTransaction(const WriteTransaction &) = delete;
         WriteTransaction &operator=(const WriteTransaction &) = delete;
@@ -191,12 +191,12 @@ class Queue final {
 
         /// Returns the number of elements available to read.
         /// @return The number of elements available for reading.
-        [[nodiscard]] SizeType availableToRead() const noexcept;
+        [[nodiscard]] SizeType availableToRead() const noexcept [[clang::nonblocking]];
 
         /// Finalizes the read transaction by removing data from the front of the queue.
         /// @param count The number of values that were read.
         /// @return false if count exceeds the readable space or the transaction has already been committed.
-        [[nodiscard]] bool commit(SizeType count) noexcept;
+        [[nodiscard]] bool commit(SizeType count) noexcept [[clang::nonblocking]];
 
         ReadTransaction(const ReadTransaction &) = delete;
         ReadTransaction &operator=(const ReadTransaction &) = delete;
