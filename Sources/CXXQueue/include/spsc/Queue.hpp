@@ -175,7 +175,8 @@ class Queue final {
 
     /// Opens and returns a write transaction containing the current writable space.
     /// @note This method is only safe to call from the producer.
-    /// @warning Committing a write transaction invalidates all other open write transactions.
+    /// @warning Opening multiple write transactions simultaneously is supported only if at most one of them is
+    /// committed. After any producer operation all previously opened write transactions become invalid.
     /// @return A write transaction containing the current writable space.
     [[nodiscard]] WriteTransaction beginWrite() noexcept [[clang::nonblocking]];
 
@@ -225,7 +226,8 @@ class Queue final {
 
     /// Opens and returns a read transaction containing the current readable space.
     /// @note This method is only safe to call from the consumer.
-    /// @warning Committing a read transaction invalidates all other open read transactions.
+    /// @warning Opening multiple read transactions simultaneously is supported only if at most one of them is
+    /// committed. After any consumer operation all previously opened read transactions become invalid.
     /// @return A read transaction containing the current readable space.
     [[nodiscard]] ReadTransaction beginRead() noexcept [[clang::nonblocking]];
 
