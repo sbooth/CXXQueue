@@ -26,7 +26,7 @@ TEST_F(QueueTest, PushAndPopSingleElement) {
 
     EXPECT_TRUE(queue_.push(42));
     EXPECT_FALSE(queue_.isEmpty());
-    EXPECT_EQ(queue_.count(), 1);
+    EXPECT_EQ(queue_.availableToRead(), 1);
 
     EXPECT_TRUE(queue_.peek(val));
     EXPECT_EQ(val, 42);
@@ -43,7 +43,7 @@ TEST_F(QueueTest, PushUntilFullAndPopUntilEmpty) {
     }
 
     EXPECT_TRUE(queue_.isFull());
-    EXPECT_EQ(queue_.free(), 0);
+    EXPECT_EQ(queue_.availableToWrite(), 0);
     EXPECT_FALSE(queue_.push(999)); // Should fail when full
 
     // Empty the queue
@@ -57,7 +57,7 @@ TEST_F(QueueTest, PushUntilFullAndPopUntilEmpty) {
     EXPECT_FALSE(queue_.pop(val)); // Should fail when empty
 }
 
-// MARK: - Discard and Drain
+// MARK: - Discard
 
 TEST_F(QueueTest, DiscardElements) {
     for (int i = 0; i < 4; ++i) {
@@ -66,7 +66,7 @@ TEST_F(QueueTest, DiscardElements) {
 
     // Discard a subset
     EXPECT_EQ(queue_.discard(2), 2);
-    EXPECT_EQ(queue_.count(), 2);
+    EXPECT_EQ(queue_.availableToRead(), 2);
 
     int val = 0;
     EXPECT_TRUE(queue_.pop(val));
@@ -77,15 +77,15 @@ TEST_F(QueueTest, DiscardElements) {
     EXPECT_TRUE(queue_.isEmpty());
 }
 
-TEST_F(QueueTest, DrainElements) {
+TEST_F(QueueTest, DiscardAllElements) {
     for (int i = 0; i < 3; ++i) {
         queue_.push(i);
     }
 
-    EXPECT_EQ(queue_.drain(), 3);
+    EXPECT_EQ(queue_.discardAll(), 3);
     EXPECT_TRUE(queue_.isEmpty());
-    EXPECT_EQ(queue_.count(), 0);
-    EXPECT_EQ(queue_.free(), kCapacity);
+    EXPECT_EQ(queue_.availableToRead(), 0);
+    EXPECT_EQ(queue_.availableToWrite(), kCapacity);
 }
 
 // MARK: - Ring Wrap-Around Checks
@@ -122,7 +122,7 @@ TEST_F(QueueTest, WriteAndReadVectorContiguous) {
     writeVec.first[1] = 201;
     queue_.commitWrite(2);
 
-    EXPECT_EQ(queue_.count(), 2);
+    EXPECT_EQ(queue_.availableToRead(), 2);
 
     // Read vector should expose these 2 contiguous elements
     auto readVec = queue_.readVector();

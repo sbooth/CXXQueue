@@ -29,6 +29,10 @@ concept ValueLike = std::is_object_v<std::remove_cvref_t<T>> && std::is_triviall
 /// A lock-free SPSC queue.
 ///
 /// This class is thread safe when used with a single producer and a single consumer.
+///
+/// @note The queue is only safe if exactly one thread performs producer operations and exactly one thread performs
+/// consumer operations. Calling producer APIs concurrently from multiple threads or consumer APIs concurrently from
+/// multiple threads results in undefined behavior.
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 class Queue final {
@@ -59,7 +63,7 @@ class Queue final {
     // MARK: Information
 
     /// The capacity of the queue.
-    static constexpr auto size = N;
+    static constexpr auto capacity = N;
 
     /// Returns the current write position in the queue.
     /// @note The result of this method is only accurate when called from the producer.
@@ -86,12 +90,12 @@ class Queue final {
     /// Returns the number of vacant slots in the queue.
     /// @note The result of this method is only accurate when called from the producer.
     /// @return The number of unoccupied slots available for writing.
-    [[nodiscard]] SizeType free() const noexcept [[clang::nonblocking]];
+    [[nodiscard]] SizeType availableToWrite() const noexcept [[clang::nonblocking]];
 
     /// Returns the number of occupied slots in the queue.
     /// @note The result of this method is only accurate when called from the consumer.
     /// @return The number of occupied slots available for reading.
-    [[nodiscard]] SizeType count() const noexcept [[clang::nonblocking]];
+    [[nodiscard]] SizeType availableToRead() const noexcept [[clang::nonblocking]];
 
     // MARK: Queue Operations
 
@@ -124,7 +128,7 @@ class Queue final {
     /// Discards all values and advances the read position.
     /// @note This method is only safe to call from the consumer.
     /// @return The number of values discarded.
-    SizeType drain() noexcept [[clang::nonblocking]];
+    SizeType discardAll() noexcept [[clang::nonblocking]];
 
     // MARK: Advanced Writing and Reading
 
@@ -201,7 +205,7 @@ inline bool Queue<T, N>::isEmpty() const noexcept {
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline auto Queue<T, N>::free() const noexcept -> SizeType {
+inline auto Queue<T, N>::availableToWrite() const noexcept -> SizeType {
     const auto writePos = writePosition_.load(std::memory_order_relaxed);
     const auto readPos = readPosition_.load(std::memory_order_acquire);
     return N - (writePos - readPos);
@@ -209,7 +213,7 @@ inline auto Queue<T, N>::free() const noexcept -> SizeType {
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline auto Queue<T, N>::count() const noexcept -> SizeType {
+inline auto Queue<T, N>::availableToRead() const noexcept -> SizeType {
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
     return writePos - readPos;
@@ -286,7 +290,7 @@ inline auto Queue<T, N>::discard(SizeType count) noexcept -> SizeType {
 
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
-inline auto Queue<T, N>::drain() noexcept -> SizeType {
+inline auto Queue<T, N>::discardAll() noexcept -> SizeType {
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
     const auto used = writePos - readPos;
