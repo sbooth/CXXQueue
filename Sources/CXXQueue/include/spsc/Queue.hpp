@@ -499,7 +499,7 @@ inline auto Queue<T, N>::ReadTransaction::availableToRead() const noexcept -> Si
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline auto Queue<T, N>::ReadTransaction::copyTo(std::span<T> dst) noexcept -> SizeType {
-    if (dst.empty() || queue_ == nullptr) {
+    if (dst.empty() || queue_ == nullptr) [[unlikely]] {
         return 0;
     }
 
