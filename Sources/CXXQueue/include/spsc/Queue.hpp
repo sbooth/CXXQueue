@@ -61,14 +61,18 @@ class Queue final {
     /// The capacity of the queue.
     static constexpr auto capacity = N;
 
-    /// Returns the current write position in the queue.
+    /// Returns the current free-running write position in the queue.
+    ///
+    /// This value is a monotonically increasing counter not wrapped to the queue's capacity.
     /// @note The result of this method is only accurate when called from the producer.
-    /// @return The current write position.
+    /// @return The current free-running write position.
     [[nodiscard]] SizeType writePosition() const noexcept [[clang::nonblocking]];
 
-    /// Returns the current read position in the queue.
+    /// Returns the current free-running read position in the queue.
+    ///
+    /// This value is a monotonically increasing counter not wrapped to the queue's capacity.
     /// @note The result of this method is only accurate when called from the consumer.
-    /// @return The current read position.
+    /// @return The current free-running read position.
     [[nodiscard]] SizeType readPosition() const noexcept [[clang::nonblocking]];
 
     // MARK: Statistics
