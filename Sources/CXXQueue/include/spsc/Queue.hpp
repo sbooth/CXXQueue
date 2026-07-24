@@ -12,6 +12,7 @@
 #include <atomic>
 #include <bit>
 #include <concepts>
+#include <limits>
 #include <new>
 #include <span>
 #include <type_traits>
@@ -403,16 +404,7 @@ inline auto Queue<T, N>::discard(SizeType count) noexcept -> SizeType {
 template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline auto Queue<T, N>::discardAll() noexcept -> SizeType {
-    const auto writePos = writePosition_.load(std::memory_order_acquire);
-    const auto readPos = readPosition_.load(std::memory_order_relaxed);
-    const auto used = writePos - readPos;
-
-    if (used == 0) {
-        return 0;
-    }
-
-    readPosition_.store(writePos, std::memory_order_release);
-    return used;
+    return discard(std::numeric_limits<SizeType>::max());
 }
 
 // MARK: Advanced Writing and Reading
