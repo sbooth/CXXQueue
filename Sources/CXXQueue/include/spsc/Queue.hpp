@@ -51,8 +51,9 @@ class Queue final {
 
     Queue(const Queue &) = delete;
     Queue &operator=(const Queue &) = delete;
-    Queue(Queue &&) noexcept = delete;
-    Queue &operator=(Queue &&) noexcept = delete;
+
+    Queue(Queue &&) = delete;
+    Queue &operator=(Queue &&) = delete;
 
     /// Destroys the queue and releases all associated resources.
     ~Queue() noexcept = default;
