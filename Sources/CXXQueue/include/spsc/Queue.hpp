@@ -340,9 +340,9 @@ template <ValueLike T, std::size_t N>
 inline bool Queue<T, N>::push(const T &value) noexcept {
     const auto writePos = writePosition_.load(std::memory_order_relaxed);
     const auto readPos = readPosition_.load(std::memory_order_acquire);
-    const auto used = writePos - readPos;
+    const auto availableToRead = writePos - readPos;
 
-    if (used == N) {
+    if (availableToRead == N) {
         return false;
     }
 
@@ -391,13 +391,13 @@ inline auto Queue<T, N>::discard(SizeType count) noexcept -> SizeType {
 
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
-    const auto used = writePos - readPos;
+    const auto availableToRead = writePos - readPos;
 
-    if (used == 0) {
+    if (availableToRead == 0) {
         return 0;
     }
 
-    const auto n = std::min(used, count);
+    const auto n = std::min(availableToRead, count);
     readPosition_.store(readPos + n, std::memory_order_release);
     return n;
 }
@@ -471,20 +471,20 @@ template <ValueLike T, std::size_t N>
 inline auto Queue<T, N>::beginWrite() noexcept -> WriteTransaction {
     const auto writePos = writePosition_.load(std::memory_order_relaxed);
     const auto readPos = readPosition_.load(std::memory_order_acquire);
-    const auto used = writePos - readPos;
-    const auto free = N - used;
+    const auto availableToRead = writePos - readPos;
+    const auto availableToWrite = N - availableToRead;
 
-    if (free == 0) [[unlikely]] {
+    if (availableToWrite == 0) [[unlikely]] {
         return {};
     }
 
     const auto writeIndex = writePos & capacityMask_;
     const auto toEnd = N - writeIndex;
 
-    if (free > toEnd) [[unlikely]] {
-        return WriteTransaction({buffer_ + writeIndex, toEnd}, {buffer_, free - toEnd}, this, writePos);
+    if (availableToWrite > toEnd) [[unlikely]] {
+        return WriteTransaction({buffer_ + writeIndex, toEnd}, {buffer_, availableToWrite - toEnd}, this, writePos);
     }
-    return WriteTransaction({buffer_ + writeIndex, free}, {}, this, writePos);
+    return WriteTransaction({buffer_ + writeIndex, availableToWrite}, {}, this, writePos);
 }
 
 template <ValueLike T, std::size_t N>
@@ -548,19 +548,19 @@ template <ValueLike T, std::size_t N>
 inline auto Queue<T, N>::beginRead() noexcept -> ReadTransaction {
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
-    const auto used = writePos - readPos;
+    const auto availableToRead = writePos - readPos;
 
-    if (used == 0) [[unlikely]] {
+    if (availableToRead == 0) [[unlikely]] {
         return {};
     }
 
     const auto readIndex = readPos & capacityMask_;
     const auto toEnd = N - readIndex;
 
-    if (used > toEnd) [[unlikely]] {
-        return ReadTransaction({buffer_ + readIndex, toEnd}, {buffer_, used - toEnd}, this, readPos);
+    if (availableToRead > toEnd) [[unlikely]] {
+        return ReadTransaction({buffer_ + readIndex, toEnd}, {buffer_, availableToRead - toEnd}, this, readPos);
     }
-    return ReadTransaction({buffer_ + readIndex, used}, {}, this, readPos);
+    return ReadTransaction({buffer_ + readIndex, availableToRead}, {}, this, readPos);
 }
 
 } /* namespace spsc */
