@@ -9,13 +9,24 @@
 
 #include <algorithm>
 #include <atomic>
+#include <csignal>
 #include <cstdint>
+#include <cstdlib>
 #include <numeric>
 #include <random>
 #include <thread>
 #include <vector>
 
 #include <gtest/gtest.h>
+
+namespace {
+// Exits quietly on abort so the death test child process does not produce a crash report
+void exitOnAbort() {
+#ifndef NDEBUG
+    std::signal(SIGABRT, [](int) { std::_Exit(EXIT_FAILURE); });
+#endif
+}
+} // namespace
 
 class QueueTest : public ::testing::Test {
   protected:
@@ -268,7 +279,12 @@ TEST_F(QueueDeathTest, StaleWriteTransactionCommitFails) {
     ASSERT_TRUE(queue_.push(1));
 
     [[maybe_unused]] bool committed = true;
-    EXPECT_DEBUG_DEATH(committed = stale.commit(0), "stale write transaction");
+    EXPECT_DEBUG_DEATH(
+            {
+                exitOnAbort();
+                committed = stale.commit(0);
+            },
+            "stale write transaction");
 #ifdef NDEBUG
     EXPECT_FALSE(committed);
     EXPECT_EQ(queue_.availableToRead(), 1U);
@@ -288,7 +304,12 @@ TEST_F(QueueDeathTest, StaleReadTransactionCommitFails) {
     ASSERT_TRUE(queue_.pop(val));
 
     [[maybe_unused]] bool committed = true;
-    EXPECT_DEBUG_DEATH(committed = stale.commit(0), "stale read transaction");
+    EXPECT_DEBUG_DEATH(
+            {
+                exitOnAbort();
+                committed = stale.commit(0);
+            },
+            "stale read transaction");
 #ifdef NDEBUG
     EXPECT_FALSE(committed);
     EXPECT_EQ(queue_.availableToRead(), 2U);
