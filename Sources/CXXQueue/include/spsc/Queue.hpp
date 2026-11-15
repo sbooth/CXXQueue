@@ -163,8 +163,9 @@ class Queue final {
 
         /// Finalizes the transaction by advancing the write position.
         /// @param count The number of values that were written.
-        /// @return false if count exceeds the writable space, the transaction is empty, has already been committed,
-        /// or the write position has advanced since the transaction was opened.
+        /// @return false if count exceeds the writable space, the transaction is empty, or has already been committed.
+        /// @warning Committing a transaction after the write position has advanced is a programming error. It triggers
+        /// an assertion in debug builds and returns false when assertions are disabled.
         [[nodiscard]] bool commit(SizeType count) noexcept [[clang::nonblocking]];
 
         WriteTransaction(const WriteTransaction &) = delete;
@@ -229,8 +230,9 @@ class Queue final {
 
         /// Finalizes the transaction by advancing the read position.
         /// @param count The number of values that were read.
-        /// @return false if count exceeds the readable space, the transaction is empty, has already been committed,
-        /// or the read position has advanced since the transaction was opened.
+        /// @return false if count exceeds the readable space, the transaction is empty, or has already been committed,
+        /// @warning Committing a transaction after the read position has advanced is a programming error. It triggers
+        /// an assertion in debug builds and returns false when assertions are disabled.
         [[nodiscard]] bool commit(SizeType count) noexcept [[clang::nonblocking]];
 
         ReadTransaction(const ReadTransaction &) = delete;
