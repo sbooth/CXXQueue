@@ -26,9 +26,9 @@ template <std::size_t N>
 concept ValidPowerOfTwo = (N >= 2) && std::has_single_bit(N);
 
 template <typename T>
-concept ValueLike = std::is_object_v<std::remove_cvref_t<T>> && std::is_trivially_copyable_v<std::remove_cvref_t<T>> &&
-                    std::is_standard_layout_v<std::remove_cvref_t<T>> && !std::is_pointer_v<std::remove_cvref_t<T>> &&
-                    !std::ranges::range<std::remove_cvref_t<T>>;
+concept ValueLike = std::same_as<T, std::remove_cvref_t<T>> && std::is_object_v<T> && std::default_initializable<T> &&
+                    std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T> && !std::is_pointer_v<T> &&
+                    !std::ranges::range<T>;
 
 /// A lock-free SPSC queue.
 ///
