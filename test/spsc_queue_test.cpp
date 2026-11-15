@@ -227,6 +227,9 @@ TEST_F(QueueTest, TransactionWrapAroundSplitting) {
 
 TEST_F(QueueTest, StaleWriteTransactionCommitFails) {
     auto stale = queue_.beginWrite();
+    ASSERT_EQ(stale.availableToWrite(), kCapacity);
+
+    // Advancing the write position invalidates the open transaction
     ASSERT_TRUE(queue_.push(1));
 
     bool committed = true;
