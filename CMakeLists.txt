@@ -1,36 +1,25 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.21)
 project(CXXQueue VERSION 0.6.0 LANGUAGES CXX)
+
+include(GNUInstallDirs)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_library(CXXQueue
-    Sources/CXXQueue/spsc/Queue.cpp
-    Sources/CXXQueue/include/spsc/Queue.hpp
-)
+add_library(CXXQueue INTERFACE)
 add_library(spsc::Queue ALIAS CXXQueue)
+set_target_properties(CXXQueue PROPERTIES EXPORT_NAME Queue)
 
-target_include_directories(CXXQueue PUBLIC
+target_compile_features(CXXQueue INTERFACE cxx_std_20)
+
+target_include_directories(CXXQueue INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Sources/CXXQueue/include>
-    $<INSTALL_INTERFACE:include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-if(MSVC)
-    target_compile_options(CXXQueue PRIVATE /W4)
-else()
-    target_compile_options(CXXQueue PRIVATE -Wall -Wextra)
-endif()
+install(TARGETS CXXQueue EXPORT CXXQueueTargets)
 
-include(GNUInstallDirs)
-
-install(TARGETS CXXQueue
-    EXPORT CXXQueueTargets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
-
-install(DIRECTORY Sources/CXXQueue/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY Sources/CXXQueue/include/spsc DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 install(EXPORT CXXQueueTargets
     FILE CXXQueueTargets.cmake
@@ -38,7 +27,7 @@ install(EXPORT CXXQueueTargets
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/CXXQueue
 )
 
-option(BUILD_TESTING "Build tests" ON)
+option(CXXQUEUE_BUILD_TESTING "Build the CXXQueue tests" ${PROJECT_IS_TOP_LEVEL})
 
 if(BUILD_TESTING)
     find_package(GTest REQUIRED)
@@ -52,6 +41,12 @@ if(BUILD_TESTING)
             spsc::Queue
             GTest::gtest_main
     )
+
+    if(MSVC)
+        target_compile_options(run_tests PRIVATE /W4)
+    else()
+        target_compile_options(run_tests PRIVATE -Wall -Wextra)
+    endif()
 
     include(GoogleTest)
     gtest_discover_tests(run_tests)
