@@ -61,7 +61,7 @@ TEST_F(QueueTest, PushUntilFullAndPopUntilEmpty) {
 
 TEST_F(QueueTest, DiscardElements) {
     for (int i = 0; i < 4; ++i) {
-        queue_.push(i);
+        ASSERT_TRUE(queue_.push(i));
     }
 
     // Discard a subset
@@ -79,7 +79,7 @@ TEST_F(QueueTest, DiscardElements) {
 
 TEST_F(QueueTest, DiscardAllElements) {
     for (int i = 0; i < 3; ++i) {
-        queue_.push(i);
+        ASSERT_TRUE(queue_.push(i));
     }
 
     EXPECT_EQ(queue_.discardAll(), 3);
@@ -225,6 +225,64 @@ TEST_F(QueueTest, TransactionWrapAroundSplitting) {
     EXPECT_TRUE(queue_.isEmpty());
 }
 
+TEST_F(QueueTest, StaleWriteTransactionCommitFails) {
+    auto stale = queue_.beginWrite();
+    ASSERT_TRUE(queue_.push(1));
+
+    bool committed = true;
+    EXPECT_DEBUG_DEATH(committed = stale.commit(0), "stale write transaction");
+#ifdef NDEBUG
+    EXPECT_FALSE(committed);
+    EXPECT_EQ(queue_.availableToRead(), 1U);
+#endif
+}
+
+TEST_F(QueueTest, StaleReadTransactionCommitFails) {
+    for (int i = 0; i < 3; ++i) {
+        ASSERT_TRUE(queue_.push(i));
+    }
+
+    auto stale = queue_.beginRead();
+    ASSERT_EQ(stale.availableToRead(), 3U);
+
+    // Advancing the read position invalidates the open transaction
+    int val = 0;
+    ASSERT_TRUE(queue_.pop(val));
+
+    bool committed = true;
+    EXPECT_DEBUG_DEATH(committed = stale.commit(0), "stale read transaction");
+#ifdef NDEBUG
+    EXPECT_FALSE(committed);
+    EXPECT_EQ(queue_.availableToRead(), 2U);
+#endif
+}
+
+TEST_F(QueueTest, TransactionCopyHelpers) {
+    // Offset the positions so the copies wrap
+    int dummy = 0;
+    for (int i = 0; i < 3; ++i) {
+        ASSERT_TRUE(queue_.push(i));
+        ASSERT_TRUE(queue_.pop(dummy));
+    }
+
+    const std::vector<int> src{1, 2, 3, 4, 5, 6};
+    auto writeTrans = queue_.beginWrite();
+    const auto written = writeTrans.copyFrom(src);
+    ASSERT_EQ(written, kCapacity);
+    ASSERT_TRUE(writeTrans.commit(written));
+
+    std::vector<int> dst(8, 0);
+    auto readTrans = queue_.beginRead();
+    const auto read = readTrans.copyTo(dst);
+    ASSERT_EQ(read, kCapacity);
+    ASSERT_TRUE(readTrans.commit(read));
+
+    for (std::size_t i = 0; i < kCapacity; ++i) {
+        EXPECT_EQ(dst[i], src[i]);
+    }
+    EXPECT_TRUE(queue_.isEmpty());
+}
+
 // MARK: - Thread-Safety Validation
 
 TEST(QueueConcurrencyTest, SingleProducerSingleConsumer) {
@@ -263,3 +321,22 @@ TEST(QueueConcurrencyTest, SingleProducerSingleConsumer) {
         ASSERT_EQ(received_data[i], i);
     }
 }
+
+// MARK: - Type Requirements
+
+namespace {
+struct NoDefaultConstructor {
+    int value;
+    explicit NoDefaultConstructor(int v) : value(v) {}
+};
+
+template <typename T>
+concept CanInstantiateQueue = requires { typename spsc::Queue<T, 8>; };
+
+static_assert(CanInstantiateQueue<int>);
+static_assert(!CanInstantiateQueue<const int>);
+static_assert(!CanInstantiateQueue<volatile int>);
+static_assert(!CanInstantiateQueue<int &>);
+static_assert(!CanInstantiateQueue<int *>);
+static_assert(!CanInstantiateQueue<NoDefaultConstructor>);
+} // namespace
