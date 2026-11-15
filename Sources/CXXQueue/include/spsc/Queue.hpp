@@ -483,7 +483,7 @@ inline auto Queue<T, N>::beginWrite() noexcept -> WriteTransaction {
     const auto writeIndex = writePos & capacityMask_;
     const auto toEnd = N - writeIndex;
 
-    if (availableToWrite > toEnd) [[unlikely]] {
+    if (availableToWrite > toEnd) {
         return WriteTransaction({buffer_ + writeIndex, toEnd}, {buffer_, availableToWrite - toEnd}, this, writePos);
     }
     return WriteTransaction({buffer_ + writeIndex, availableToWrite}, {}, this, writePos);
@@ -559,7 +559,7 @@ inline auto Queue<T, N>::beginRead() noexcept -> ReadTransaction {
     const auto readIndex = readPos & capacityMask_;
     const auto toEnd = N - readIndex;
 
-    if (availableToRead > toEnd) [[unlikely]] {
+    if (availableToRead > toEnd) {
         return ReadTransaction({buffer_ + readIndex, toEnd}, {buffer_, availableToRead - toEnd}, this, readPos);
     }
     return ReadTransaction({buffer_ + readIndex, availableToRead}, {}, this, readPos);
