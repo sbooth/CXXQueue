@@ -7,7 +7,11 @@
 
 #include "spsc/Queue.hpp"
 
+#include <algorithm>
+#include <atomic>
+#include <cstdint>
 #include <numeric>
+#include <random>
 #include <thread>
 #include <vector>
 
@@ -323,6 +327,100 @@ TEST(QueueConcurrencyTest, SingleProducerSingleConsumer) {
     for (int i = 0; i < kTotalElements; ++i) {
         ASSERT_EQ(received_data[i], i);
     }
+}
+
+TEST(QueueConcurrencyTest, MixedTransactionsAndSingleValues) {
+    // A small capacity forces frequent wrap-around and full/empty transitions
+    constexpr std::size_t N = 8;
+    constexpr std::uint64_t kTotalElements = 2'000'000;
+    spsc::Queue<std::uint64_t, N> queue;
+
+    std::atomic<bool> commitFailed{false};
+    std::atomic<bool> mismatch{false};
+
+    std::thread producer([&]() {
+        std::minstd_rand rng(1);
+        std::uint64_t next = 0;
+        while (next < kTotalElements) {
+            if ((rng() & 3) == 0) {
+                if (queue.push(next)) {
+                    ++next;
+                } else {
+                    std::this_thread::yield();
+                }
+                continue;
+            }
+
+            auto transaction = queue.beginWrite();
+            const auto available = transaction.availableToWrite();
+            if (available == 0) {
+                std::this_thread::yield();
+                continue;
+            }
+
+            const auto count = static_cast<std::size_t>(
+                    std::min<std::uint64_t>({available, 1 + rng() % N, kTotalElements - next}));
+            for (std::size_t i = 0; i < count; ++i) {
+                auto &slot = i < transaction.first.size() ? transaction.first[i]
+                                                          : transaction.second[i - transaction.first.size()];
+                slot = next + i;
+            }
+            if (!transaction.commit(count)) {
+                commitFailed = true;
+                return;
+            }
+            next += count;
+        }
+    });
+
+    std::thread consumer([&]() {
+        std::minstd_rand rng(2);
+        std::uint64_t expected = 0;
+        while (expected < kTotalElements && !commitFailed) {
+            if ((rng() & 3) == 0) {
+                std::uint64_t value = 0;
+                if (queue.pop(value)) {
+                    if (value != expected) {
+                        mismatch = true;
+                    }
+                    ++expected;
+                } else {
+                    std::this_thread::yield();
+                }
+                continue;
+            }
+
+            auto transaction = queue.beginRead();
+            const auto available = transaction.availableToRead();
+            if (available == 0) {
+                std::this_thread::yield();
+                continue;
+            }
+
+            const auto count = std::min<std::size_t>(available, 1 + rng() % N);
+            for (std::size_t i = 0; i < count; ++i) {
+                const auto value = i < transaction.first.size() ? transaction.first[i]
+                                                                : transaction.second[i - transaction.first.size()];
+                if (value != expected + i) {
+                    mismatch = true;
+                }
+            }
+            if (!transaction.commit(count)) {
+                commitFailed = true;
+                return;
+            }
+            expected += count;
+        }
+    });
+
+    producer.join();
+    consumer.join();
+
+    EXPECT_FALSE(commitFailed);
+    EXPECT_FALSE(mismatch);
+    EXPECT_TRUE(queue.isEmpty());
+    EXPECT_EQ(queue.writePosition(), kTotalElements);
+    EXPECT_EQ(queue.readPosition(), kTotalElements);
 }
 
 // MARK: - Type Requirements
