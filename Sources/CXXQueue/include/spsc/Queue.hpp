@@ -350,6 +350,7 @@ template <ValueLike T, std::size_t N>
 inline bool Queue<T, N>::push(const T &value) noexcept {
     const auto writePos = writePosition_.load(std::memory_order_relaxed);
     const auto readPos = readPosition_.load(std::memory_order_acquire);
+    assert(writePos - readPos <= N && "Buffer invariant violated: writePosition_ - readPosition_ exceeds N");
     const auto availableToRead = writePos - readPos;
 
     if (availableToRead == N) {
@@ -366,6 +367,7 @@ template <ValueLike T, std::size_t N>
 inline bool Queue<T, N>::pop(T &value) noexcept {
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
+    assert(writePos - readPos <= N && "Buffer invariant violated: writePosition_ - readPosition_ exceeds N");
 
     if (writePos == readPos) {
         return false;
@@ -381,6 +383,7 @@ template <ValueLike T, std::size_t N>
 inline bool Queue<T, N>::peek(T &value) const noexcept {
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
+    assert(writePos - readPos <= N && "Buffer invariant violated: writePosition_ - readPosition_ exceeds N");
 
     if (writePos == readPos) {
         return false;
@@ -401,6 +404,7 @@ inline auto Queue<T, N>::discard(SizeType count) noexcept -> SizeType {
 
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
+    assert(writePos - readPos <= N && "Buffer invariant violated: writePosition_ - readPosition_ exceeds N");
     const auto availableToRead = writePos - readPos;
 
     if (availableToRead == 0) {
@@ -485,6 +489,7 @@ template <ValueLike T, std::size_t N>
 inline auto Queue<T, N>::beginWrite() noexcept -> WriteTransaction {
     const auto writePos = writePosition_.load(std::memory_order_relaxed);
     const auto readPos = readPosition_.load(std::memory_order_acquire);
+    assert(writePos - readPos <= N && "Buffer invariant violated: writePosition_ - readPosition_ exceeds N");
     const auto availableToRead = writePos - readPos;
     const auto availableToWrite = N - availableToRead;
 
@@ -566,6 +571,7 @@ template <ValueLike T, std::size_t N>
 inline auto Queue<T, N>::beginRead() noexcept -> ReadTransaction {
     const auto writePos = writePosition_.load(std::memory_order_acquire);
     const auto readPos = readPosition_.load(std::memory_order_relaxed);
+    assert(writePos - readPos <= N && "Buffer invariant violated: writePosition_ - readPosition_ exceeds N");
     const auto availableToRead = writePos - readPos;
 
     if (availableToRead == 0) [[unlikely]] {
