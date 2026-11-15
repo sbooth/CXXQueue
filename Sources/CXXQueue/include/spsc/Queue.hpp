@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <atomic>
 #include <bit>
+#include <cassert>
 #include <concepts>
 #include <limits>
 #include <new>
@@ -443,6 +444,7 @@ inline bool Queue<T, N>::WriteTransaction::commit(SizeType count) noexcept {
         return false;
     }
     if (queue_->writePosition_.load(std::memory_order_relaxed) != position_) [[unlikely]] {
+        assert(false && "Attempt to commit stale write transaction");
         return false;
     }
     queue_->writePosition_.store(position_ + count, std::memory_order_release);
@@ -523,6 +525,7 @@ inline bool Queue<T, N>::ReadTransaction::commit(SizeType count) noexcept {
         return false;
     }
     if (queue_->readPosition_.load(std::memory_order_relaxed) != position_) [[unlikely]] {
+        assert(false && "Attempt to commit stale read transaction");
         return false;
     }
     queue_->readPosition_.store(position_ + count, std::memory_order_release);
