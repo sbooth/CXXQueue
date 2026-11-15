@@ -267,7 +267,7 @@ TEST_F(QueueDeathTest, StaleWriteTransactionCommitFails) {
     // Advancing the write position invalidates the open transaction
     ASSERT_TRUE(queue_.push(1));
 
-    bool committed = true;
+    [[maybe_unused]] bool committed = true;
     EXPECT_DEBUG_DEATH(committed = stale.commit(0), "stale write transaction");
 #ifdef NDEBUG
     EXPECT_FALSE(committed);
@@ -287,7 +287,7 @@ TEST_F(QueueDeathTest, StaleReadTransactionCommitFails) {
     int val = 0;
     ASSERT_TRUE(queue_.pop(val));
 
-    bool committed = true;
+    [[maybe_unused]] bool committed = true;
     EXPECT_DEBUG_DEATH(committed = stale.commit(0), "stale read transaction");
 #ifdef NDEBUG
     EXPECT_FALSE(committed);
