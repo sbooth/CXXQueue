@@ -80,6 +80,9 @@ class Queue final {
     [[nodiscard]] SizeType readPosition() const noexcept [[clang::nonblocking]];
 
     // MARK: Statistics
+    //
+    // These methods are intended for the producer or the consumer. Calling them from any other thread while the queue
+    // is in use may return values that are arbitrarily wrong.
 
     /// Returns true if the queue is full.
     /// @note The result of this method is only accurate when called from the producer.
