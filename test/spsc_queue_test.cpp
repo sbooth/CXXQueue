@@ -367,7 +367,7 @@ TEST(QueueConcurrencyTest, MixedTransactionsAndSingleValues) {
     std::thread producer([&]() {
         std::minstd_rand rng(1);
         std::uint64_t next = 0;
-        while (next < kTotalElements) {
+        while (next < kTotalElements && !commitFailed) {
             if ((rng() & 3) == 0) {
                 if (queue.push(next)) {
                     ++next;
