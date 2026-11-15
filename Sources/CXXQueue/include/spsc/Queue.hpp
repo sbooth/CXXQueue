@@ -157,7 +157,8 @@ class Queue final {
 
         /// Finalizes the transaction by advancing the write position.
         /// @param count The number of values that were written.
-        /// @return false if count exceeds the writable space or the transaction is empty or has already been committed.
+        /// @return false if count exceeds the writable space, the transaction is empty, has already been committed,
+        /// or the write position has advanced since the transaction was opened.
         [[nodiscard]] bool commit(SizeType count) noexcept [[clang::nonblocking]];
 
         WriteTransaction(const WriteTransaction &) = delete;
@@ -199,7 +200,7 @@ class Queue final {
     /// committed.
     /// @note This method is only safe to call from the producer.
     /// @warning After any operation that advances the write position all previously opened write transactions become
-    /// invalid. Using an invalid transaction results in undefined behavior.
+    /// invalid. Committing an invalid transaction fails but writing to its spans results in undefined behavior.
     /// @return A write transaction containing the current writable space.
     [[nodiscard]] WriteTransaction beginWrite() noexcept [[clang::nonblocking]];
 
@@ -222,7 +223,8 @@ class Queue final {
 
         /// Finalizes the transaction by advancing the read position.
         /// @param count The number of values that were read.
-        /// @return false if count exceeds the readable space or the transaction is empty or has already been committed.
+        /// @return false if count exceeds the readable space, the transaction is empty, has already been committed,
+        /// or the read position has advanced since the transaction was opened.
         [[nodiscard]] bool commit(SizeType count) noexcept [[clang::nonblocking]];
 
         ReadTransaction(const ReadTransaction &) = delete;
@@ -264,7 +266,7 @@ class Queue final {
     /// committed.
     /// @note This method is only safe to call from the consumer.
     /// @warning After any operation that advances the read position all previously opened read transactions become
-    /// invalid. Using an invalid transaction results in undefined behavior.
+    /// invalid. Committing an invalid transaction fails but reading from its spans results in undefined behavior.
     /// @return A read transaction containing the current readable space.
     [[nodiscard]] ReadTransaction beginRead() noexcept [[clang::nonblocking]];
 
@@ -440,6 +442,9 @@ inline bool Queue<T, N>::WriteTransaction::commit(SizeType count) noexcept {
     if (queue_ == nullptr || count > availableToWrite()) [[unlikely]] {
         return false;
     }
+    if (queue_->writePosition_.load(std::memory_order_relaxed) != position_) [[unlikely]] {
+        return false;
+    }
     queue_->writePosition_.store(position_ + count, std::memory_order_release);
     reset();
     return true;
@@ -515,6 +520,9 @@ template <ValueLike T, std::size_t N>
     requires ValidPowerOfTwo<N>
 inline bool Queue<T, N>::ReadTransaction::commit(SizeType count) noexcept {
     if (queue_ == nullptr || count > availableToRead()) [[unlikely]] {
+        return false;
+    }
+    if (queue_->readPosition_.load(std::memory_order_relaxed) != position_) [[unlikely]] {
         return false;
     }
     queue_->readPosition_.store(position_ + count, std::memory_order_release);
