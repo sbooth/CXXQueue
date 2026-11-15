@@ -483,7 +483,6 @@ inline auto Queue<T, N>::beginWrite() noexcept -> WriteTransaction {
     const auto readPos = readPosition_.load(std::memory_order_acquire);
     assert(writePos - readPos <= N && "Buffer invariant violated: writePosition_ - readPosition_ exceeds N");
     const auto availableToRead = writePos - readPos;
-
     const auto availableToWrite = N - availableToRead;
 
     if (availableToWrite == 0) [[unlikely]] {
