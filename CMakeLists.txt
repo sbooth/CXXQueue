@@ -29,7 +29,7 @@ install(EXPORT CXXQueueTargets
 
 option(CXXQUEUE_BUILD_TESTING "Build the CXXQueue tests" ${PROJECT_IS_TOP_LEVEL})
 
-if(BUILD_TESTING)
+if(CXXQUEUE_BUILD_TESTING)
     find_package(GTest REQUIRED)
 
     enable_testing()
