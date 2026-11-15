@@ -229,41 +229,6 @@ TEST_F(QueueTest, TransactionWrapAroundSplitting) {
     EXPECT_TRUE(queue_.isEmpty());
 }
 
-TEST_F(QueueTest, StaleWriteTransactionCommitFails) {
-    auto stale = queue_.beginWrite();
-    ASSERT_EQ(stale.availableToWrite(), kCapacity);
-
-    // Advancing the write position invalidates the open transaction
-    ASSERT_TRUE(queue_.push(1));
-
-    bool committed = true;
-    EXPECT_DEBUG_DEATH(committed = stale.commit(0), "stale write transaction");
-#ifdef NDEBUG
-    EXPECT_FALSE(committed);
-    EXPECT_EQ(queue_.availableToRead(), 1U);
-#endif
-}
-
-TEST_F(QueueTest, StaleReadTransactionCommitFails) {
-    for (int i = 0; i < 3; ++i) {
-        ASSERT_TRUE(queue_.push(i));
-    }
-
-    auto stale = queue_.beginRead();
-    ASSERT_EQ(stale.availableToRead(), 3U);
-
-    // Advancing the read position invalidates the open transaction
-    int val = 0;
-    ASSERT_TRUE(queue_.pop(val));
-
-    bool committed = true;
-    EXPECT_DEBUG_DEATH(committed = stale.commit(0), "stale read transaction");
-#ifdef NDEBUG
-    EXPECT_FALSE(committed);
-    EXPECT_EQ(queue_.availableToRead(), 2U);
-#endif
-}
-
 TEST_F(QueueTest, TransactionCopyHelpers) {
     // Offset the positions so the copies wrap
     int dummy = 0;
@@ -288,6 +253,46 @@ TEST_F(QueueTest, TransactionCopyHelpers) {
         EXPECT_EQ(dst[i], src[i]);
     }
     EXPECT_TRUE(queue_.isEmpty());
+}
+
+// MARK: - Death Tests
+
+// Suites named *DeathTest are run before all other tests
+using QueueDeathTest = QueueTest;
+
+TEST_F(QueueDeathTest, StaleWriteTransactionCommitFails) {
+    auto stale = queue_.beginWrite();
+    ASSERT_EQ(stale.availableToWrite(), kCapacity);
+
+    // Advancing the write position invalidates the open transaction
+    ASSERT_TRUE(queue_.push(1));
+
+    bool committed = true;
+    EXPECT_DEBUG_DEATH(committed = stale.commit(0), "stale write transaction");
+#ifdef NDEBUG
+    EXPECT_FALSE(committed);
+    EXPECT_EQ(queue_.availableToRead(), 1U);
+#endif
+}
+
+TEST_F(QueueDeathTest, StaleReadTransactionCommitFails) {
+    for (int i = 0; i < 3; ++i) {
+        ASSERT_TRUE(queue_.push(i));
+    }
+
+    auto stale = queue_.beginRead();
+    ASSERT_EQ(stale.availableToRead(), 3U);
+
+    // Advancing the read position invalidates the open transaction
+    int val = 0;
+    ASSERT_TRUE(queue_.pop(val));
+
+    bool committed = true;
+    EXPECT_DEBUG_DEATH(committed = stale.commit(0), "stale read transaction");
+#ifdef NDEBUG
+    EXPECT_FALSE(committed);
+    EXPECT_EQ(queue_.availableToRead(), 2U);
+#endif
 }
 
 // MARK: - Thread-Safety Validation
