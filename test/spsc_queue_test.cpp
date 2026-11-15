@@ -41,7 +41,7 @@ TEST_F(QueueTest, PushAndPopSingleElement) {
 
     EXPECT_TRUE(queue_.push(42));
     EXPECT_FALSE(queue_.isEmpty());
-    EXPECT_EQ(queue_.availableToRead(), 1);
+    EXPECT_EQ(queue_.availableToRead(), 1U);
 
     EXPECT_TRUE(queue_.peek(val));
     EXPECT_EQ(val, 42);
@@ -58,7 +58,7 @@ TEST_F(QueueTest, PushUntilFullAndPopUntilEmpty) {
     }
 
     EXPECT_TRUE(queue_.isFull());
-    EXPECT_EQ(queue_.availableToWrite(), 0);
+    EXPECT_EQ(queue_.availableToWrite(), 0U);
     EXPECT_FALSE(queue_.push(999)); // Should fail when full
 
     // Empty the queue
@@ -80,15 +80,15 @@ TEST_F(QueueTest, DiscardElements) {
     }
 
     // Discard a subset
-    EXPECT_EQ(queue_.discard(2), 2);
-    EXPECT_EQ(queue_.availableToRead(), 2);
+    EXPECT_EQ(queue_.discard(2), 2U);
+    EXPECT_EQ(queue_.availableToRead(), 2U);
 
     int val = 0;
     EXPECT_TRUE(queue_.pop(val));
     EXPECT_EQ(val, 2);
 
     // Try to discard more than available
-    EXPECT_EQ(queue_.discard(5), 1);
+    EXPECT_EQ(queue_.discard(5), 1U);
     EXPECT_TRUE(queue_.isEmpty());
 }
 
@@ -97,9 +97,9 @@ TEST_F(QueueTest, DiscardAllElements) {
         ASSERT_TRUE(queue_.push(i));
     }
 
-    EXPECT_EQ(queue_.discardAll(), 3);
+    EXPECT_EQ(queue_.discardAll(), 3U);
     EXPECT_TRUE(queue_.isEmpty());
-    EXPECT_EQ(queue_.availableToRead(), 0);
+    EXPECT_EQ(queue_.availableToRead(), 0U);
     EXPECT_EQ(queue_.availableToWrite(), kCapacity);
 }
 
@@ -120,8 +120,8 @@ TEST_F(QueueTest, WrapAroundBehavior) {
     }
 
     // Check sequence alignment tracking
-    EXPECT_EQ(queue_.writePosition(), 20);
-    EXPECT_EQ(queue_.readPosition(), 20);
+    EXPECT_EQ(queue_.writePosition(), 20U);
+    EXPECT_EQ(queue_.readPosition(), 20U);
 }
 
 // MARK: - Advanced Transactional APIs
@@ -129,14 +129,14 @@ TEST_F(QueueTest, WrapAroundBehavior) {
 TEST_F(QueueTest, WriteAndReadTransaction) {
     // Nothing to read when empty
     auto readTrans1 = queue_.beginRead();
-    EXPECT_EQ(readTrans1.availableToRead(), 0);
+    EXPECT_EQ(readTrans1.availableToRead(), 0U);
     ASSERT_FALSE(readTrans1.commit(0));
 
     EXPECT_TRUE(queue_.isEmpty());
 
     // Fill
     auto writeTrans1 = queue_.beginWrite();
-    EXPECT_EQ(writeTrans1.availableToWrite(), 4);
+    EXPECT_EQ(writeTrans1.availableToWrite(), 4U);
     writeTrans1.first[0] = 100;
     writeTrans1.first[1] = 101;
     writeTrans1.first[2] = 102;
@@ -144,43 +144,43 @@ TEST_F(QueueTest, WriteAndReadTransaction) {
 
     // Ensure erroneous and double commits fail
     EXPECT_FALSE(writeTrans1.commit(5));
-    EXPECT_EQ(writeTrans1.availableToWrite(), 4);
+    EXPECT_EQ(writeTrans1.availableToWrite(), 4U);
     EXPECT_TRUE(writeTrans1.commit(4));
-    EXPECT_EQ(writeTrans1.availableToWrite(), 0);
+    EXPECT_EQ(writeTrans1.availableToWrite(), 0U);
     EXPECT_FALSE(writeTrans1.commit(4));
 
     EXPECT_TRUE(queue_.isFull());
 
     auto writeTrans2 = queue_.beginWrite();
-    EXPECT_EQ(writeTrans2.availableToWrite(), 0);
+    EXPECT_EQ(writeTrans2.availableToWrite(), 0U);
     ASSERT_FALSE(writeTrans2.commit(0));
 
     auto readTrans2 = queue_.beginRead();
-    EXPECT_EQ(readTrans2.availableToRead(), 4);
+    EXPECT_EQ(readTrans2.availableToRead(), 4U);
     ASSERT_FALSE(readTrans2.commit(5));
     ASSERT_TRUE(readTrans2.commit(2));
     ASSERT_FALSE(readTrans2.commit(1));
 
-    EXPECT_EQ(queue_.availableToRead(), 2);
+    EXPECT_EQ(queue_.availableToRead(), 2U);
 }
 
 TEST_F(QueueTest, WriteAndReadTransactionContiguous) {
     // When empty, beginWrite should return a contiguous span to the end of the buffer
     auto writeTrans = queue_.beginWrite();
     ASSERT_EQ(writeTrans.first.size(), kCapacity);
-    ASSERT_EQ(writeTrans.second.size(), 0);
+    ASSERT_EQ(writeTrans.second.size(), 0U);
 
     // Stage writing 2 elements manually
     writeTrans.first[0] = 100;
     writeTrans.first[1] = 201;
     EXPECT_TRUE(writeTrans.commit(2));
 
-    EXPECT_EQ(queue_.availableToRead(), 2);
+    EXPECT_EQ(queue_.availableToRead(), 2U);
 
     // Read transaction should expose these 2 contiguous elements
     auto readTrans = queue_.beginRead();
-    ASSERT_EQ(readTrans.first.size(), 2);
-    ASSERT_EQ(readTrans.second.size(), 0);
+    ASSERT_EQ(readTrans.first.size(), 2U);
+    ASSERT_EQ(readTrans.second.size(), 0U);
     EXPECT_EQ(readTrans.first[0], 100);
     EXPECT_EQ(readTrans.first[1], 201);
 
@@ -210,8 +210,8 @@ TEST_F(QueueTest, TransactionWrapAroundSplitting) {
     // writeIndex is 3. toEnd is 4 - 3 = 1.
     // Because free (3) > toEnd (1), it must split!
     auto writeTrans = queue_.beginWrite();
-    ASSERT_EQ(writeTrans.first.size(), 1);  // Index 3
-    ASSERT_EQ(writeTrans.second.size(), 2); // Indices 0 and 1
+    ASSERT_EQ(writeTrans.first.size(), 1U);  // Index 3
+    ASSERT_EQ(writeTrans.second.size(), 2U); // Indices 0 and 1
 
     // Stage data into the write spans
     writeTrans.first[0] = 30;          // Goes into index 3
@@ -228,8 +228,8 @@ TEST_F(QueueTest, TransactionWrapAroundSplitting) {
     // Total used slots = 4 (Full queue). Read position is 2. toEnd is 4 - 2 = 2.
     // Because used (4) > toEnd (2), it must split!
     auto readTrans = queue_.beginRead();
-    ASSERT_EQ(readTrans.first.size(), 2);  // Indices 2 and 3
-    ASSERT_EQ(readTrans.second.size(), 2); // Indices 0 and 1
+    ASSERT_EQ(readTrans.first.size(), 2U);  // Indices 2 and 3
+    ASSERT_EQ(readTrans.second.size(), 2U); // Indices 0 and 1
 
     EXPECT_EQ(readTrans.first[0], 20);
     EXPECT_EQ(readTrans.first[1], 30);
@@ -349,7 +349,7 @@ TEST(QueueConcurrencyTest, SingleProducerSingleConsumer) {
     consumer.join();
 
     // Verify all data was transferred linearly without corruptions
-    ASSERT_EQ(received_data.size(), kTotalElements);
+    ASSERT_EQ(received_data.size(), static_cast<unsigned int>(kTotalElements));
     for (int i = 0; i < kTotalElements; ++i) {
         ASSERT_EQ(received_data[i], i);
     }
