@@ -19,14 +19,14 @@
 
 #include <gtest/gtest.h>
 
+#ifndef NDEBUG
 namespace {
 // Exits quietly on abort so the death test child process does not produce a crash report
 void exitOnAbort() {
-#ifndef NDEBUG
     std::signal(SIGABRT, [](int) { std::_Exit(EXIT_FAILURE); });
-#endif
 }
 } // namespace
+#endif
 
 class QueueTest : public ::testing::Test {
   protected:
@@ -266,6 +266,8 @@ TEST_F(QueueTest, TransactionCopyHelpers) {
     EXPECT_TRUE(queue_.isEmpty());
 }
 
+#ifndef NDEBUG
+
 // MARK: - Death Tests
 
 // Suites named *DeathTest are run before all other tests
@@ -285,10 +287,9 @@ TEST_F(QueueDeathTest, StaleWriteTransactionCommitFails) {
                 committed = stale.commit(0);
             },
             "stale write transaction");
-#ifdef NDEBUG
+
     EXPECT_FALSE(committed);
     EXPECT_EQ(queue_.availableToRead(), 1U);
-#endif
 }
 
 TEST_F(QueueDeathTest, StaleReadTransactionCommitFails) {
@@ -310,11 +311,11 @@ TEST_F(QueueDeathTest, StaleReadTransactionCommitFails) {
                 committed = stale.commit(0);
             },
             "stale read transaction");
-#ifdef NDEBUG
+
     EXPECT_FALSE(committed);
     EXPECT_EQ(queue_.availableToRead(), 2U);
-#endif
 }
+#endif
 
 // MARK: - Thread-Safety Validation
 
